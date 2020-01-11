@@ -2,7 +2,6 @@ import { parseConfig } from "./util";
 import { setFailed, setOutput } from "@actions/core";
 import { GitHub } from "@actions/github";
 import { env } from "process";
-import { fchmod } from "fs";
 
 async function run() {
   try {
@@ -38,6 +37,7 @@ async function run() {
     const diffset = commits.data.files
       .filter(file => file.status != "removed")
       .map(file => file.filename);
+    setOutput("files", diffset.join(" "));
   } catch (error) {
     setFailed(error.message);
   }

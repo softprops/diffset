@@ -35,3 +35,5 @@ jobs:
         id: diffset
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Print Diffset
+        run: echo "Files changed where ${{ steps.diffset.outputs.files }}"
