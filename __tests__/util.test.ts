@@ -1,10 +1,7 @@
-import {
-  parseConfig
-} from "../src/util";
+import { parseConfig } from "../src/util";
 import * as assert from "assert";
 
 describe("util", () => {
-
   describe("parseConfig", () => {
     it("parses basic config", () => {
       assert.deepStrictEqual(parseConfig({}), {
@@ -13,5 +10,5 @@ describe("util", () => {
         github_token: ""
       });
     });
-  });;
+  });
 });

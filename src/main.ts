@@ -1,4 +1,4 @@
-import {  parseConfig } from "./util";
+import { parseConfig } from "./util";
 import { setFailed, setOutput } from "@actions/core";
 import { GitHub } from "@actions/github";
 import { env } from "process";
@@ -35,7 +35,9 @@ async function run() {
       owner,
       repo
     });
-    const diffset = commits.data.files.filter(file => file.status != "removed").map(file => file.filename);
+    const diffset = commits.data.files
+      .filter(file => file.status != "removed")
+      .map(file => file.filename);
   } catch (error) {
     setFailed(error.message);
   }

@@ -10,6 +10,6 @@ export const parseConfig = (env: Env): Config => {
   return {
     github_token: env.GITHUB_TOKEN || "",
     github_ref: env.GITHUB_REF || "",
-    github_repository: env.GITHUB_REPOSITORY || "",
+    github_repository: env.GITHUB_REPOSITORY || ""
   };
 };
