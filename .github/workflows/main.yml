@@ -33,3 +33,5 @@ jobs:
       - name: Diffset
         uses: ./ # Uses an action in the root directory
         id: diffset
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
