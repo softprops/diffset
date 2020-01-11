@@ -11,9 +11,8 @@
 </div>
 
 <div align="center">
-  <a href="https://github.com/softprops/diffsete/actions">
-		<img src="https://github.com/softprops/  <a href="https://github.com/softprops/diffsete/actions">
-/workflows/Main/badge.svg"/>
+  <a href="https://github.com/softprops/diffset/actions">
+		<img src="https://github.com/softprops/diffset/actions/workflows/Main/badge.svg"/>
 	</a>
 </div>
 
