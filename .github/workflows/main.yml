@@ -1,6 +1,6 @@
 name: Main
 
-on: [pull_request, push]
+on: push
 
 jobs:
   build:
@@ -31,9 +31,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
       - name: Diffset
-        uses: ./ # Uses an action in the root directory
         id: diffset
+        uses: ./ # Uses an action in the root directory
+        with:
+          md_files: '*.md'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Print Diffset
+        run: echo "Files changed where ${{ steps.diffset.outputs.files }}"
+      - name: Print MD Files
+        if: steps.diffset.outputs.md_files
         run: echo "Files changed where ${{ steps.diffset.outputs.files }}"
