@@ -7,15 +7,10 @@
 </p>
 
 <div align="center">
-  <img src="demo.png"/>
-</div>
-
-<div align="center">
   <a href="https://github.com/softprops/diffset/actions">
-		<img src="https://github.com/softprops/diffset/actions/workflows/Main/badge.svg"/>
+		<img src="https://github.com/softprops/diffset/workflows/Main/badge.svg"/>
 	</a>
 </div>
-
 
 <br />
 
