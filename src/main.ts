@@ -1,5 +1,6 @@
-import { parseConfig, GitHubCompare, sets } from "./util";
-import { setFailed, setOutput } from "@actions/core";
+import { parseConfig } from "./util";
+import { GitHubDiff, sets } from "./diff";
+import { setFailed, setOutput, debug, warning } from "@actions/core";
 import { GitHub } from "@actions/github";
 import { env } from "process";
 
@@ -7,44 +8,39 @@ async function run() {
   try {
     const config = parseConfig(env);
     GitHub.plugin(require("@octokit/plugin-throttling"));
-    const compare = new GitHubCompare(
-      new GitHub(config.github_token, {
+    const differ = new GitHubDiff(
+      new GitHub(config.githubToken, {
         onRateLimit: (retryAfter, options) => {
-          console.warn(
+          warning(
             `Request quota exhausted for request ${options.method} ${options.url}`
           );
           if (options.request.retryCount === 0) {
             // only retries once
-            console.log(`Retrying after ${retryAfter} seconds!`);
+            warning(`Retrying after ${retryAfter} seconds!`);
             return true;
           }
         },
         onAbuseLimit: (retryAfter, options) => {
           // does not retry, only logs a warning
-          console.warn(
+          warning(
             `Abuse detected for request ${options.method} ${options.url}`
           );
         }
       })
     );
-    const [owner, repo] = config.github_repository.split("/", 2);
-    const head = config.github_ref.replace("refs/tags/", "");
+    const [owner, repo] = config.githubRepository.split("/", 2);
+    const head = config.githubRef.replace("refs/tags/", "");
     const base = "master";
-    const diffset = await compare.compare({
+    const diffset = await differ.diff({
       base,
       head,
       owner,
       repo
     });
     setOutput("files", diffset.join(" "));
-    let filerSets = sets(
-      {
-        md_files: "**/*.md"
-      },
-      diffset
-    );
-    Array.from(Object.entries(filerSets)).forEach(([key, matches]) => {
-      console.log(`files for ${key} ${matches}`);
+    let filterSets = sets(config.fileFilters, diffset);
+    Array.from(Object.entries(filterSets)).forEach(([key, matches]) => {
+      debug(`files for ${key} ${matches}`);
       setOutput(key, matches.join(" "));
     });
   } catch (error) {

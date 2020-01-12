@@ -2,58 +2,30 @@ import { GitHub } from "@actions/github";
 import { Minimatch } from "minimatch";
 
 export interface Config {
-  github_token: string;
-  github_ref: string;
-  github_repository: string;
+  githubToken: string;
+  githubRef: string;
+  githubRepository: string;
+  fileFilters: Record<string, string>;
 }
 
-type Env = { [key: string]: string | undefined };
+type Env = Record<string, string | undefined>;
+
+/** GitHub exposes `with` input fields in the form of env vars prefixed with INPUT_ */
+const FileFilter = /INPUT_(\w+)_FILES/;
 
 export const parseConfig = (env: Env): Config => {
   return {
-    github_token: env.GITHUB_TOKEN || "",
-    github_ref: env.GITHUB_REF || "",
-    github_repository: env.GITHUB_REPOSITORY || ""
+    githubToken: env.GITHUB_TOKEN || "",
+    githubRef: env.GITHUB_REF || "",
+    githubRepository: env.GITHUB_REPOSITORY || "",
+    fileFilters: Array.from(Object.entries(env)).reduce(
+      (filters, [key, value]) => {
+        if (FileFilter.test(key)) {
+          filters[key.toLowerCase().replace("input_", "")] = value;
+        }
+        return filters;
+      },
+      {}
+    )
   };
 };
-
-export const sets = (
-  sets: Record<string, string>,
-  files: Array<string>
-): Record<string, Array<string>> => {
-  return Array.from(Object.entries(sets)).reduce((filtered, [key, pattern]) => {
-    let matcher = new Minimatch(pattern);
-    let matched = files.filter(file => matcher.match(file));
-    if (matched.length > 0) {
-      filtered[key] = matched;
-    }
-    return filtered;
-  }, {});
-};
-
-export interface Compare {
-  compare(params: {
-    base: string;
-    head: string;
-    owner: string;
-    repo: string;
-  }): Promise<Array<string>>;
-}
-
-export class GitHubCompare implements Compare {
-  readonly github: GitHub;
-  constructor(github: GitHub) {
-    this.github = github;
-  }
-  async compare(params: {
-    base: string;
-    head: string;
-    owner: string;
-    repo: string;
-  }): Promise<Array<string>> {
-    const response = await this.github.repos.compareCommits(params);
-    return response.data.files
-      .filter(file => file.status != "removed")
-      .map(file => file.filename);
-  }
-}
