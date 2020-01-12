@@ -50,9 +50,8 @@ jobs:
 
 The default behavior of diff is to simply introduce an output named `files` which is the set of changed files in your branch. In other cases certain workflows may benefit from skipping jobs when a class of files are not changed.
 
-Diffset also allows you do create filters for named sets of files to avoid doing unessessary work within your pipeline and produces an named output for those sets of files when they changed. These named sets of files can include multiple patterns for any given set to allow for maximum
+Diffset also allows you to create filters for named sets of files to avoid doing unessessary work within your pipeline and produces an named output for those sets of files when they changed. These named sets of files can include multiple patterns for any given set to allow for maximum
 flexibility.
-
 
 ```diff
 name: Main
@@ -80,8 +79,6 @@ jobs:
       - name: Other work
         run: echo "..."
 ```
-
-
 
 #### inputs
 
