@@ -41,4 +41,7 @@ jobs:
         run: echo "Files changed where ${{ steps.diffset.outputs.files }}"
       - name: Print MD Files
         if: steps.diffset.outputs.md_files
-        run: echo "Files changed where ${{ steps.diffset.outputs.files }}"
+        run: echo "Files changed where ${{ steps.diffset.outputs.md_files }}"
+      - name: Print Rust Files
+        if: steps.diffset.outputs.rust_files
+        run: echo "Files changed where ${{ steps.diffset.outputs.rust_files }}"
