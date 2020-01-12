@@ -2,7 +2,6 @@ import { parseConfig, GitHubCompare, sets } from "./util";
 import { setFailed, setOutput } from "@actions/core";
 import { GitHub } from "@actions/github";
 import { env } from "process";
-import { Minimatch } from "minimatch";
 
 async function run() {
   try {
@@ -44,7 +43,7 @@ async function run() {
       },
       diffset
     );
-    Array.from(Object.entries(sets)).forEach(([key, matches]) => {
+    Array.from(Object.entries(filerSets)).forEach(([key, matches]) => {
       console.log(`files for ${key} ${matches}`);
       setOutput(key, matches.join(" "));
     });
