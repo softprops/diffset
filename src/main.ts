@@ -26,8 +26,8 @@ async function run() {
       }
     });
     const [owner, repo] = config.github_repository.split("/");
-    const head = "master";
-    const base = config.github_ref.replace("refs/tags/", "");
+    const head = config.github_ref.replace("refs/tags/", "");
+    const base = "master";
     const commits = await gh.repos.compareCommits({
       base,
       head,
