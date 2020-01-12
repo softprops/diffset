@@ -1,6 +1,3 @@
-import { GitHub } from "@actions/github";
-import { Minimatch } from "minimatch";
-
 export interface Config {
   githubToken: string;
   githubRef: string;
