@@ -1,4 +1,4 @@
-import { parseConfig } from "./util";
+import { parseConfig, intoParams } from "./util";
 import { GitHubDiff, sets } from "./diff";
 import { setFailed, setOutput, debug, warning } from "@actions/core";
 import { GitHub } from "@actions/github";
@@ -28,15 +28,7 @@ async function run() {
         }
       })
     );
-    const [owner, repo] = config.githubRepository.split("/", 2);
-    const head = config.githubRef.replace("refs/tags/", "");
-    const base = "master";
-    const diffset = await differ.diff({
-      base,
-      head,
-      owner,
-      repo
-    });
+    const diffset = await differ.diff(intoParams(config));
     setOutput("files", diffset.join(" "));
     let filterSets = sets(config.fileFilters, diffset);
     Array.from(Object.entries(filterSets)).forEach(([key, matches]) => {

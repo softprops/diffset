@@ -1,6 +1,13 @@
 import { GitHub } from "@actions/github";
 import { Minimatch } from "minimatch";
 
+export type Params = {
+  base: string;
+  head: string;
+  owner: string;
+  repo: string;
+};
+
 /** produce a collection of named diff sets based on patterns defined in sets */
 export const sets = (
   filters: Record<string, string>,
@@ -20,12 +27,7 @@ export const sets = (
   );
 
 export interface Diff {
-  diff(params: {
-    base: string;
-    head: string;
-    owner: string;
-    repo: string;
-  }): Promise<Array<string>>;
+  diff(params: Params): Promise<Array<string>>;
 }
 
 export class GitHubDiff implements Diff {
@@ -33,12 +35,7 @@ export class GitHubDiff implements Diff {
   constructor(github: GitHub) {
     this.github = github;
   }
-  async diff(params: {
-    base: string;
-    head: string;
-    owner: string;
-    repo: string;
-  }): Promise<Array<string>> {
+  async diff(params: Params): Promise<Array<string>> {
     const response = await this.github.repos.compareCommits(params);
     return response.data.files
       .filter(file => file.status != "removed")
