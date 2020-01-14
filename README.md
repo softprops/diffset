@@ -85,7 +85,7 @@ jobs:
 The following are optional as `step.with` keys
 
 This action supports dynamically named inputs which will result in dynamically named outputs.
-Specifically this uses any inputs with a suffix of `_files`
+Specifically this action accepts any inputs with a suffix of `_files`
 
 | Name        | Type    | Description                                                     |
 |-------------|---------|-----------------------------------------------------------------|
@@ -97,7 +97,7 @@ Specifically this uses any inputs with a suffix of `_files`
 The following outputs can be accessed via `${{ steps.<step-id>.outputs }}` from this action
 
 This action supports dynamically named inputs which will result in dynamically named outputs.
-Specifically this uses any inputs with a suffix of `_files`
+Specifically this action yields outputs based on inputs named with a suffix of `_files`
 
 | Name        | Type    | Description                                                     |
 |-------------|---------|-----------------------------------------------------------------|
