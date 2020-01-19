@@ -18,7 +18,9 @@
 
 The goal of a workflow is to do its work as quickly as possible. A core feature of GitHub actions enables this called [path filtering](https://help.github.com/en/actions/automating-your-workflow-with-github-actions/workflow-syntax-for-github-actions#onpushpull_requestpaths)
 
-Many command line tools accept a list of files as inputs to limit the amount of work they need to do. Diffset is a tool that targets the usecase of maximally efficient workflows where such tools are in use so that you can apply them to only the things that changed. Save yourself some time and [money](https://help.github.com/en/github/setting-up-and-managing-billing-and-payments-on-github/about-billing-for-github-actions#about-billing-for-github-actions). ✨ Doing less is faster than doing more ✨
+Many command line tools accept a list of files as inputs to limit the amount of work they need to do. Diffset is a tool that targets the usecase of maximally efficient workflows where such tools are in use so that you can apply them to only the things that changed. Save yourself some time and [money](https://help.github.com/en/github/setting-up-and-managing-billing-and-payments-on-github/about-billing-for-github-actions#about-billing-for-github-actions).
+
+ ✨ Doing less is faster than doing more ✨
 
 ## 🤸 Usage
 
@@ -43,15 +45,16 @@ jobs:
 +       env:
 +         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Print Diffset
-        run: echo "Files changed were ${{ steps.diffset.outputs.files }}"
+        run: ls -al ${{ steps.diffset.outputs.files }}
 ```
 
 ### 💅 Customizing
 
 The default behavior of diff is to simply introduce an output named `files` which is the set of changed files in your branch. In other cases certain workflows may benefit from skipping jobs when a class of files are not changed.
 
-Diffset also allows you to create filters for named sets of files to avoid doing unessessary work within your pipeline and produces an named output for those sets of files when they changed. These named sets of files can include multiple patterns for any given set to allow for maximum
-flexibility.
+#### Custom diff sets
+
+Diffset also allows you to create filters for named sets of files to avoid doing unessessary work within your pipeline and produces an named output for those sets of files when they changed. These named sets of files can include multiple patterns for any given set to allow for maximum flexibility.
 
 ```diff
 name: Main
@@ -75,9 +78,35 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Print Special Files
         if: diffset.outputs.special_files
-        run: echo "Files changed were ${{ steps.diffset.outputs.special_files }}"
+        run: ls -al ${{ steps.diffset.outputs.special_files }}
       - name: Other work
         run: echo "..."
+```
+
+#### Custom base branch
+
+Most GitHub repositories use a default "master" branch. Diffset uses this as a basis of comparison by default. If you use a different base branch you can use the `steps.with` key to provide a custom `base`
+
+```diff
+name: Main
+
+on: push
+
+jobs:
+  main:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Diffset
+        id: diffset
+        uses: softprops/diffset@master
++       with:
++         base: develop
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Other work
+        run: ls -al ${{ steps.diffset.outputs.files }}
 ```
 
 #### inputs
