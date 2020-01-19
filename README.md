@@ -24,7 +24,7 @@ Many command line tools accept a list of files as inputs to limit the amount of 
 
 ## 🤸 Usage
 
-The typical setup for diffset involves adding job step using `softprops/diffset@master`.
+The typical setup for diffset involves adding job step using `softprops/diffset@v1`.
 
 This will collect a list of files that have changed and export them to an output named `files`. It retrieves this list of files from the GitHub api and as such it will need your repositories `GITHUB_TOKEN` secret.
 
@@ -41,7 +41,7 @@ jobs:
         uses: actions/checkout@v2
 +     - name: Diffset
 +       id: diffset
-+       uses: softprops/diffset@master
++       uses: softprops/diffset@v1
 +       env:
 +         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Print Diffset
@@ -69,7 +69,7 @@ jobs:
         uses: actions/checkout@v2
       - name: Diffset
         id: diffset
-        uses: softprops/diffset@master
+        uses: softprops/diffset@v1
 +       with:
 +         special_files: |
 +           src/special/**/*.ts
@@ -100,7 +100,7 @@ jobs:
         uses: actions/checkout@v2
       - name: Diffset
         id: diffset
-        uses: softprops/diffset@master
+        uses: softprops/diffset@v1
 +       with:
 +         base: develop
         env:
@@ -158,7 +158,7 @@ jobs:
     steps:
       - name: Diffset
         id: diffset
-        uses: softprops/diffset@master
+        uses: softprops/diffset@v1
        with:
          special_files: |
            src/special/**/*.ts
