@@ -1,12 +1,15 @@
 # https://help.github.com/en/articles/metadata-syntax-for-github-actions
 name: 'diffset'
-description: 'Github Action for creating Github Releases'
+description: 'Github Action for producing lists of files that changed between branches'
 author: 'softprops'
 env:
-  'GITHUB_TOKEN': 'As provided by Github Actions'
+  'GITHUB_TOKEN': 'Repository token provided by Github Actions secrets'
 runs:
   using: 'node12'
   main: 'dist/index.js'
+inputs:
+  base:
+    description: "Base branch to compare with (defaults to master)"
 branding:
   color: 'green'
   icon: 'activity'

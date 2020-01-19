@@ -50,6 +50,28 @@ describe("util", () => {
           githubRef: "head/refs/test",
           githubRepository: "softprops/diffset",
           githubToken: "aeiou",
+          base: undefined,
+          fileFilters: {
+            foo_files: "*.foo"
+          }
+        }
+      );
+    });
+    it("parses configuration from env including custom base", () => {
+      assert.deepStrictEqual(
+        parseConfig({
+          GITHUB_REF: "head/refs/test",
+          GITHUB_REPOSITORY: "softprops/diffset",
+          GITHUB_TOKEN: "aeiou",
+          INPUT_FOO_FILES: "*.foo",
+          INPUT_BASE: "develop",
+          INPUT_BAR: "ignored"
+        }),
+        {
+          githubRef: "head/refs/test",
+          githubRepository: "softprops/diffset",
+          githubToken: "aeiou",
+          base: "develop",
           fileFilters: {
             foo_files: "*.foo"
           }

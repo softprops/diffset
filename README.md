@@ -90,6 +90,7 @@ Specifically this action accepts any inputs with a suffix of `_files`
 | Name        | Type    | Description                                                     |
 |-------------|---------|-----------------------------------------------------------------|
 | `*_files`   | string  | A file pattern to filter changed files                          |
+| `base`      | string  | Base branch for comparison. Defaults to "master"                |
 
 
 #### outputs
