@@ -1,5 +1,5 @@
 # https://help.github.com/en/articles/metadata-syntax-for-github-actions
-name: 'diffset'
+name: 'diff-set'
 description: 'Github Action for producing lists of files that changed between branches'
 author: 'softprops'
 env:
