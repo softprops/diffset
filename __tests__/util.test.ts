@@ -3,7 +3,7 @@ import * as assert from "assert";
 
 describe("util", () => {
   describe("infoParams", () => {
-    it("transforms a config into diff params", () => {
+    it("transforms a config into diff params for heads", () => {
       assert.deepStrictEqual(
         intoParams({
           githubToken: "aeiou",
@@ -14,6 +14,22 @@ describe("util", () => {
         {
           base: "master",
           head: "branch",
+          owner: "owner",
+          repo: "repo"
+        }
+      );
+    });
+    it("preserves git flow style refs", () => {
+      assert.deepStrictEqual(
+        intoParams({
+          githubToken: "aeiou",
+          githubRef: "refs/heads/feature/branch",
+          githubRepository: "owner/repo",
+          fileFilters: {}
+        }),
+        {
+          base: "master",
+          head: "feature/branch",
           owner: "owner",
           repo: "repo"
         }

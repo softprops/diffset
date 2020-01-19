@@ -14,7 +14,7 @@ const FileFilter = /INPUT_(\w+)_FILES/;
 
 export const intoParams = (config: Config): Params => {
   const [owner, repo] = config.githubRepository.split("/", 2);
-  const head = config.githubRef.split("/", 3)[2];
+  const head = config.githubRef.replace(/refs\/(heads|tags)\//, "");
   const base = "master";
   return {
     base,
