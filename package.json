@@ -20,24 +20,24 @@
   "author": "softprops",
   "license": "MIT",
   "dependencies": {
-    "@actions/core": "^1.2.1",
-    "@actions/github": "^2.0.1",
+    "@actions/core": "^1.2.3",
+    "@actions/github": "^2.1.1",
     "@octokit/plugin-throttling": "^2.7.1",
     "minimatch": "^3.0.4"
   },
   "devDependencies": {
-    "@types/jest": "^24.0.25",
+    "@types/jest": "^24.9.1",
     "@types/minimatch": "^3.0.3",
-    "@types/node": "^12.12.24",
-    "@zeit/ncc": "^0.21.0",
-    "husky": "^4.0.10",
+    "@types/node": "^12.12.29",
+    "@zeit/ncc": "^0.21.1",
+    "husky": "^4.2.3",
     "jest": "^24.9.0",
     "jest-circus": "^24.9.0",
     "lint-staged": "^9.5.0",
-    "nock": "^11.7.2",
+    "nock": "^11.9.1",
     "prettier": "1.19.1",
-    "ts-jest": "^24.2.0",
-    "typescript": "^3.7.4"
+    "ts-jest": "^24.3.0",
+    "typescript": "^3.8.3"
   },
   "lint-staged": {
     "{__tests__,src}/**/*.ts": [
