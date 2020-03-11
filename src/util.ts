@@ -1,4 +1,5 @@
 import { Params } from "./diff";
+import { escape } from "querystring";
 
 export interface Config {
   githubToken: string;
@@ -15,8 +16,8 @@ const FileFilter = /INPUT_(\w+)_FILES/;
 
 export const intoParams = (config: Config): Params => {
   const [owner, repo] = config.githubRepository.split("/", 2);
-  const head = config.githubRef.replace(/refs\/(heads|tags)\//, "");
-  const base = config.base || "master";
+  const head = escape(config.githubRef.substring(11));
+  const base = escape(config.base || "master");
   return {
     base,
     head,

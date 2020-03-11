@@ -29,7 +29,7 @@ describe("util", () => {
         }),
         {
           base: "master",
-          head: "feature/branch",
+          head: "feature%2Fbranch",
           owner: "owner",
           repo: "repo"
         }
