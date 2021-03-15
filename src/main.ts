@@ -37,6 +37,7 @@ async function run() {
       setOutput(key, matches.join(" "));
     });
   } catch (error) {
+    console.error(error);
     setFailed(error.message);
   }
 }
