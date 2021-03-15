@@ -51,9 +51,10 @@ export class GitHubDiff implements Diff {
           .filter(isDefined) || []
       );
     } else {
-      const unref = { ...params };
-      unref.ref == undefined;
-      const response = await this.github.repos.compareCommits(unref);
+      const response = await this.github.repos.compareCommits({
+        ...params,
+        ref: undefined,
+      });
       return response.data.files
         .filter((file) => file.status != "removed")
         .map((file) => file.filename);
