@@ -21,24 +21,6 @@ describe("util", () => {
         }
       );
     });
-    it("preserves git flow style refs", () => {
-      assert.deepStrictEqual(
-        intoParams({
-          githubToken: "aeiou",
-          githubRef: "refs/heads/feature/branch",
-          githubRepository: "owner/repo",
-          fileFilters: {},
-          sha: "b04376c43f66b8beed87abe6e28504781a4e461d",
-        }),
-        {
-          base: "master",
-          head: "feature%2Fbranch",
-          owner: "owner",
-          repo: "repo",
-          ref: "b04376c43f66b8beed87abe6e28504781a4e461d",
-        }
-      );
-    });
   });
   describe("parseConfig", () => {
     it("parses configuration from env", () => {

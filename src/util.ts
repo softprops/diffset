@@ -1,7 +1,4 @@
 import { Params } from "./diff";
-import { escape } from "querystring";
-import { readFileSync } from "node:fs";
-
 export interface Config {
   githubToken: string;
   githubRef: string;
@@ -27,8 +24,8 @@ const cleanRef = (ref: string): string => {
 };
 export const intoParams = (config: Config): Params => {
   const [owner, repo] = config.githubRepository.split("/", 2);
-  const head = escape(cleanRef(config.githubRef));
-  const base = escape(config.base || "master");
+  const head = cleanRef(config.githubRef);
+  const base = config.base || "master";
   const ref = config.sha;
   return {
     base,
