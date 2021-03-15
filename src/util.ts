@@ -7,6 +7,7 @@ export interface Config {
   githubRepository: string;
   base?: string | undefined;
   fileFilters: Record<string, string>;
+  sha: string;
 }
 
 type Env = Record<string, string | undefined>;
@@ -18,11 +19,13 @@ export const intoParams = (config: Config): Params => {
   const [owner, repo] = config.githubRepository.split("/", 2);
   const head = escape(config.githubRef.substring(11));
   const base = escape(config.base || "master");
+  const ref = config.sha;
   return {
     base,
     head,
     owner,
-    repo
+    repo,
+    ref,
   };
 };
 
@@ -40,6 +43,7 @@ export const parseConfig = (env: Env): Config => {
         return filters;
       },
       {}
-    )
+    ),
+    sha: env.GITHUB_SHA || "",
   };
 };
