@@ -43,6 +43,7 @@ export class GitHubDiff implements Diff {
     // if this is a merge to master push
     // base and head will both be the same
     if (params.base === params.head) {
+      console.log("getting commit info", params);
       const commit = await this.github.repos.getCommit(params);
       return (
         commit.data.files
@@ -51,6 +52,7 @@ export class GitHubDiff implements Diff {
           .filter(isDefined) || []
       );
     } else {
+      console.log("comparing commits", params);
       const response = await this.github.repos.compareCommits(params);
       return response.data.files
         .filter((file) => file.status != "removed")
