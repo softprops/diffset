@@ -170,4 +170,4 @@ jobs:
         uses: actions/checkout@v2
 ```
 
-Doug Tangren (softprops) 2019
+Doug Tangren (softprops) 2019-2021
