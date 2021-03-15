@@ -1,3 +1,6 @@
+## 0.1.5
+
+* bug fix. upgrade to latest octokit now double escapes git flow style branches
 ## 0.1.4
 
 * bug fix. exclude the ref argument when comparing two branches
