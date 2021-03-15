@@ -32,7 +32,7 @@ export const intoParams = (config: Config): Params => {
 export const parseConfig = (env: Env): Config => {
   return {
     githubToken: env.GITHUB_TOKEN || "",
-    githubRef: env.GITHUB_REF || "",
+    githubRef: env.GITHUB_HEAD_REF || env.GITHUB_REF || "",
     githubRepository: env.GITHUB_REPOSITORY || "",
     base: env.INPUT_BASE,
     fileFilters: Array.from(Object.entries(env)).reduce(
