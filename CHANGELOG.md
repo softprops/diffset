@@ -1,3 +1,6 @@
+## 0.1.4
+
+* bug fix. exclude the ref argument when comparing two branches
 ## 0.1.3 
 
 * bug fix. strip ref for refs/tags as well as refs/heads
