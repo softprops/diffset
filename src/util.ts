@@ -1,5 +1,6 @@
 import { Params } from "./diff";
 import { escape } from "querystring";
+import { readFileSync } from "node:fs";
 
 export interface Config {
   githubToken: string;
@@ -15,13 +16,18 @@ type Env = Record<string, string | undefined>;
 /** GitHub exposes `with` input fields in the form of env vars prefixed with INPUT_ */
 const FileFilter = /INPUT_(\w+)_FILES/;
 
+const cleanRef = (ref: string): string => {
+  if (ref.indexOf("refs/heads/") === 0) {
+    return ref.substring(11);
+  }
+  if (ref.indexOf("refs/tags/") === 0) {
+    return ref.substring(10);
+  }
+  return ref;
+};
 export const intoParams = (config: Config): Params => {
   const [owner, repo] = config.githubRepository.split("/", 2);
-  const head = escape(
-    config.githubRef.indexOf("refs/heads/") === 0
-      ? config.githubRef.substring(11)
-      : config.githubRef
-  );
+  const head = escape(cleanRef(config.githubRef));
   const base = escape(config.base || "master");
   const ref = config.sha;
   return {

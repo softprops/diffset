@@ -1,3 +1,6 @@
+## 0.1.3 
+
+* bug fix. strip ref for refs/tags as well as refs/heads
 ## 0.1.2
 
 * add support for push to master
