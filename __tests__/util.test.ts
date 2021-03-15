@@ -9,13 +9,15 @@ describe("util", () => {
           githubToken: "aeiou",
           githubRef: "refs/heads/branch",
           githubRepository: "owner/repo",
-          fileFilters: {}
+          fileFilters: {},
+          sha: "b04376c43f66b8beed87abe6e28504781a4e461d",
         }),
         {
           base: "master",
           head: "branch",
           owner: "owner",
-          repo: "repo"
+          repo: "repo",
+          ref: "b04376c43f66b8beed87abe6e28504781a4e461d",
         }
       );
     });
@@ -25,13 +27,15 @@ describe("util", () => {
           githubToken: "aeiou",
           githubRef: "refs/heads/feature/branch",
           githubRepository: "owner/repo",
-          fileFilters: {}
+          fileFilters: {},
+          sha: "b04376c43f66b8beed87abe6e28504781a4e461d",
         }),
         {
           base: "master",
           head: "feature%2Fbranch",
           owner: "owner",
-          repo: "repo"
+          repo: "repo",
+          ref: "b04376c43f66b8beed87abe6e28504781a4e461d",
         }
       );
     });
@@ -43,8 +47,9 @@ describe("util", () => {
           GITHUB_REF: "head/refs/test",
           GITHUB_REPOSITORY: "softprops/diffset",
           GITHUB_TOKEN: "aeiou",
+          GITHUB_SHA: "b04376c43f66b8beed87abe6e28504781a4e461d",
           INPUT_FOO_FILES: "*.foo",
-          INPUT_BAR: "ignored"
+          INPUT_BAR: "ignored",
         }),
         {
           githubRef: "head/refs/test",
@@ -52,8 +57,9 @@ describe("util", () => {
           githubToken: "aeiou",
           base: undefined,
           fileFilters: {
-            foo_files: "*.foo"
-          }
+            foo_files: "*.foo",
+          },
+          sha: "b04376c43f66b8beed87abe6e28504781a4e461d",
         }
       );
     });
@@ -63,9 +69,10 @@ describe("util", () => {
           GITHUB_REF: "head/refs/test",
           GITHUB_REPOSITORY: "softprops/diffset",
           GITHUB_TOKEN: "aeiou",
+          GITHUB_SHA: "b04376c43f66b8beed87abe6e28504781a4e461d",
           INPUT_FOO_FILES: "*.foo",
           INPUT_BASE: "develop",
-          INPUT_BAR: "ignored"
+          INPUT_BAR: "ignored",
         }),
         {
           githubRef: "head/refs/test",
@@ -73,8 +80,9 @@ describe("util", () => {
           githubToken: "aeiou",
           base: "develop",
           fileFilters: {
-            foo_files: "*.foo"
-          }
+            foo_files: "*.foo",
+          },
+          sha: "b04376c43f66b8beed87abe6e28504781a4e461d",
         }
       );
     });

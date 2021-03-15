@@ -1,15 +1,16 @@
 import { parseConfig, intoParams } from "./util";
 import { GitHubDiff, sets } from "./diff";
 import { setFailed, setOutput, debug, warning } from "@actions/core";
-import { GitHub } from "@actions/github";
+import { Octokit } from "@octokit/rest";
 import { env } from "process";
 
 async function run() {
   try {
     const config = parseConfig(env);
-    GitHub.plugin(require("@octokit/plugin-throttling"));
+    Octokit.plugin(require("@octokit/plugin-throttling"));
     const differ = new GitHubDiff(
-      new GitHub(config.githubToken, {
+      new Octokit({
+        auth: config.githubToken,
         onRateLimit: (retryAfter, options) => {
           warning(
             `Request quota exhausted for request ${options.method} ${options.url}`
@@ -25,7 +26,7 @@ async function run() {
           warning(
             `Abuse detected for request ${options.method} ${options.url}`
           );
-        }
+        },
       })
     );
     const diffset = await differ.diff(intoParams(config));
@@ -36,6 +37,7 @@ async function run() {
       setOutput(key, matches.join(" "));
     });
   } catch (error) {
+    console.error(error);
     setFailed(error.message);
   }
 }
