@@ -1,3 +1,7 @@
+## 0.1.7
+
+- upgrade dependencies
+
 ## 0.1.6
 
 - upgrade actions diff to node16 to address deprecation warnings
