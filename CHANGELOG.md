@@ -1,24 +1,28 @@
 ## 0.1.5
 
-* upgrade actions diff to node16 to address deprecation warnings
+- upgrade actions diff to node16 to address deprecation warnings
+- upgrade actions/core to address deprecation warnings
+- upgrade minimatch
 
 ## 0.1.5
 
-* bug fix. upgrade to latest octokit now double escapes git flow style branches
+- bug fix. upgrade to latest octokit now double escapes git flow style branches
 
 ## 0.1.4
 
-* bug fix. exclude the ref argument when comparing two branches
-## 0.1.3 
+- bug fix. exclude the ref argument when comparing two branches
 
-* bug fix. strip ref for refs/tags as well as refs/heads
+## 0.1.3
+
+- bug fix. strip ref for refs/tags as well as refs/heads
+
 ## 0.1.2
 
-* add support for push to master
-  
+- add support for push to master
+
   This action uses the ref that triggered an event as a basis of comparision with a base, typically your default branch. for pushes to you default branch these values will be the same and yielded no diff! In this version the plugin uses the merge sha to resolve files in a merge commit to yield a diff.
- 
-* add support for pull_request event diffs
+
+- add support for pull_request event diffs
 
   GitHub pull_request events use different values for `GITHUB_REF`
   that aren't useful as inputs to api calls to resolve a diff set.
@@ -26,8 +30,8 @@
 
 ## 0.1.1
 
-* fix issue with branches not properly being url encoded before passing off to github api
+- fix issue with branches not properly being url encoded before passing off to github api
 
 ## 0.1.0
 
-* Initial release
+- Initial release
