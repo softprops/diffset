@@ -55,7 +55,7 @@ export class GitHubDiff implements Diff {
         ...params,
         ref: undefined,
       });
-      return response.data.files
+      return (response.data.files || [])
         .filter((file) => file.status != "removed")
         .map((file) => file.filename);
     }

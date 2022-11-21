@@ -38,7 +38,7 @@ async function run() {
     });
   } catch (error) {
     console.log(error);
-    setFailed(error.message);
+    setFailed((error as { message: string }).message);
   }
 }
 
