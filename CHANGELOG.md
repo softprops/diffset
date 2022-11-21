@@ -1,4 +1,4 @@
-## 0.1.5
+## 0.1.6
 
 - upgrade actions diff to node16 to address deprecation warnings
 - upgrade actions/core to address deprecation warnings
