@@ -1,3 +1,8 @@
+## 2.0.1
+
+- typescript v5
+- update deps and npm lockfile
+
 ## 2.0.0
 
 - upgrade to nodejs 20
