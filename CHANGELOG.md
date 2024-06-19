@@ -1,7 +1,9 @@
-## 1.0.0
+## 2.0.0
 
 - upgrade to nodejs 20
 - update deps
+
+## 1.0.0
 
 ## 0.1.7
 
