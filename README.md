@@ -20,7 +20,7 @@ The goal of a workflow is to do its work as quickly as possible. A core feature 
 
 Many command line tools accept a list of files as inputs to limit the amount of work they need to do. Diffset is a tool that targets the usecase of maximally efficient workflows where such tools are in use so that you can apply them to only the things that changed. Save yourself some time and [money](https://help.github.com/en/github/setting-up-and-managing-billing-and-payments-on-github/about-billing-for-github-actions#about-billing-for-github-actions).
 
- ✨ Doing less is faster than doing more ✨
+✨ Doing less is faster than doing more ✨
 
 ## 🤸 Usage
 
@@ -41,7 +41,7 @@ jobs:
         uses: actions/checkout@v4
 +     - name: Diffset
 +       id: diffset
-+       uses: softprops/diffset@v1
++       uses: softprops/diffset@v2
 +       env:
 +         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Print Diffset
@@ -69,7 +69,7 @@ jobs:
         uses: actions/checkout@v4
       - name: Diffset
         id: diffset
-        uses: softprops/diffset@v1
+        uses: softprops/diffset@v2
 +       with:
 +         special_files: |
 +           src/special/**/*.ts
@@ -100,7 +100,7 @@ jobs:
         uses: actions/checkout@v4
       - name: Diffset
         id: diffset
-        uses: softprops/diffset@v1
+        uses: softprops/diffset@v2
 +       with:
 +         base: develop
         env:
@@ -116,11 +116,10 @@ The following are optional as `step.with` keys
 This action supports dynamically named inputs which will result in dynamically named outputs.
 Specifically this action accepts any inputs with a suffix of `_files`
 
-| Name        | Type    | Description                                                     |
-|-------------|---------|-----------------------------------------------------------------|
-| `*_files`   | string  | A file pattern to filter changed files                          |
-| `base`      | string  | Base branch for comparison. Defaults to "master"                |
-
+| Name      | Type   | Description                                      |
+| --------- | ------ | ------------------------------------------------ |
+| `*_files` | string | A file pattern to filter changed files           |
+| `base`    | string | Base branch for comparison. Defaults to "master" |
 
 #### outputs
 
@@ -129,19 +128,17 @@ The following outputs can be accessed via `${{ steps.<step-id>.outputs }}` from 
 This action supports dynamically named inputs which will result in dynamically named outputs.
 Specifically this action yields outputs based on inputs named with a suffix of `_files`
 
-| Name        | Type    | Description                                                     |
-|-------------|---------|-----------------------------------------------------------------|
-| `*_files`   | string  | A space delimited list of files that changed that matched an input pattern |
-
+| Name      | Type   | Description                                                                |
+| --------- | ------ | -------------------------------------------------------------------------- |
+| `*_files` | string | A space delimited list of files that changed that matched an input pattern |
 
 #### environment variables
 
-The following are *required* as `step.env` keys
+The following are _required_ as `step.env` keys
 
-| Name           | Description                          |
-|----------------|--------------------------------------|
-| `GITHUB_TOKEN` | GITHUB_TOKEN as provided by `secrets`|
-
+| Name           | Description                           |
+| -------------- | ------------------------------------- |
+| `GITHUB_TOKEN` | GITHUB_TOKEN as provided by `secrets` |
 
 ### 💁‍♀️ pro tips
 
@@ -158,7 +155,7 @@ jobs:
     steps:
       - name: Diffset
         id: diffset
-        uses: softprops/diffset@v1
+        uses: softprops/diffset@v2
        with:
          special_files: |
            src/special/**/*.ts
