@@ -1,4 +1,4 @@
-name: Main
+name: main
 
 on:
   push:
@@ -12,17 +12,24 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      # https://github.com/actions/checkout
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".tool-versions"
+          cache: "npm"
+
       - name: Install
         run: npm ci
+
       - name: Build
         run: npm run build
+
       - name: Test
         run: npm run test
+
       - name: Format
         run: npm run fmtcheck
       # - name: "check for uncommitted changes"
@@ -33,11 +40,16 @@ jobs:
       #             "and check in all changes" \
       #         && exit 1)
   integration:
-    needs: [build]
+    needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".tool-versions"
+          cache: "npm"
+
       - name: Diffset
         id: diffset
         uses: ./ # Uses an action in the root directory
@@ -45,11 +57,14 @@ jobs:
           md_files: "*.md"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Print Diffset
         run: ls -al ${{ steps.diffset.outputs.files }}
+
       - name: Print MD Files
         if: steps.diffset.outputs.md_files
         run: echo "Files changed were ${{ steps.diffset.outputs.md_files }}"
+
       - name: Print Rust Files
         if: steps.diffset.outputs.rust_files
         run: echo "Files changed were ${{ steps.diffset.outputs.rust_files }}"
