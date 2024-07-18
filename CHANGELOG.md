@@ -3,6 +3,9 @@
 ### Exciting New Features 🎉
 * feat: get github.token as default input by @chenrui333 in https://github.com/softprops/diffset/pull/14
 
+### Other Changes 🔄
+* fix GITHUB_TOKEN ref by @chenrui333 in https://github.com/softprops/diffset/pull/16
+
 ## 2.0.1
 
 - typescript v5
