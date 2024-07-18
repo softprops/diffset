@@ -52,7 +52,7 @@ jobs:
 
       - name: Diffset
         id: diffset
-        uses: ./ # Uses an action in the root directory
+        uses: softprops/diffset@f65a20a459458d374c9ccb502de19c8848bae0c3 # v2
         with:
           md_files: "*.md"
 
