@@ -28,8 +28,8 @@ describe("util", () => {
         parseConfig({
           GITHUB_REF: "head/refs/test",
           GITHUB_REPOSITORY: "softprops/diffset",
-          GITHUB_TOKEN: "aeiou",
           GITHUB_SHA: "b04376c43f66b8beed87abe6e28504781a4e461d",
+          INPUT_TOKEN: "aeiou",
           INPUT_FOO_FILES: "*.foo",
           INPUT_BAR: "ignored",
         }),
@@ -50,8 +50,8 @@ describe("util", () => {
         parseConfig({
           GITHUB_REF: "head/refs/test",
           GITHUB_REPOSITORY: "softprops/diffset",
-          GITHUB_TOKEN: "aeiou",
           GITHUB_SHA: "b04376c43f66b8beed87abe6e28504781a4e461d",
+          INPUT_TOKEN: "aeiou",
           INPUT_FOO_FILES: "*.foo",
           INPUT_BASE: "develop",
           INPUT_BAR: "ignored",
