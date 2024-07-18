@@ -55,8 +55,6 @@ jobs:
         uses: ./ # Uses an action in the root directory
         with:
           md_files: "*.md"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Print Diffset
         run: ls -al ${{ steps.diffset.outputs.files }}

@@ -42,8 +42,6 @@ jobs:
 +     - name: Diffset
 +       id: diffset
 +       uses: softprops/diffset@v2
-+       env:
-+         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Print Diffset
         run: ls -al ${{ steps.diffset.outputs.files }}
 ```
@@ -74,8 +72,6 @@ jobs:
 +         special_files: |
 +           src/special/**/*.ts
 +           src/or-these/**/*.ts
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Print Special Files
         if: diffset.outputs.special_files
         run: ls -al ${{ steps.diffset.outputs.special_files }}
@@ -103,8 +99,6 @@ jobs:
         uses: softprops/diffset@v2
 +       with:
 +         base: develop
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Other work
         run: ls -al ${{ steps.diffset.outputs.files }}
 ```
@@ -132,14 +126,6 @@ Specifically this action yields outputs based on inputs named with a suffix of `
 | --------- | ------ | -------------------------------------------------------------------------- |
 | `*_files` | string | A space delimited list of files that changed that matched an input pattern |
 
-#### environment variables
-
-The following are _required_ as `step.env` keys
-
-| Name           | Description                           |
-| -------------- | ------------------------------------- |
-| `GITHUB_TOKEN` | GITHUB_TOKEN as provided by `secrets` |
-
 ### 💁‍♀️ pro tips
 
 In more complicated workflows you may find that simply cloning your repository takes a succfiently long about of time. In these cases you can opt to generate a diffset first, then checkout only if needed.
@@ -160,8 +146,6 @@ jobs:
          special_files: |
            src/special/**/*.ts
            src/or-these/**/*.ts
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Checkout
 +       if: diffset.outputs.special_files
         uses: actions/checkout@v4
