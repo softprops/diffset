@@ -1,3 +1,7 @@
+## 2.1.1
+
+maintenance release with updated dependencies
+
 ## 2.1.0
 
 ### Exciting New Features 🎉
