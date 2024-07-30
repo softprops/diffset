@@ -49,7 +49,7 @@ export const parseConfig = (env: Env): Config => {
         }
         return filters;
       },
-      {}
+      {},
     ),
     sha: env.GITHUB_SHA || "",
   };

@@ -12,7 +12,7 @@ export type Params = {
 /** produce a collection of named diff sets based on patterns defined in sets */
 export const sets = (
   filters: Record<string, string>,
-  files: Array<string>
+  files: Array<string>,
 ): Record<string, Array<string>> =>
   Array.from(Object.entries(filters)).reduce(
     (filtered, [key, patterns]) =>
@@ -24,7 +24,7 @@ export const sets = (
         }
         return filtered;
       }, filtered),
-    {}
+    {},
   );
 
 export interface Diff {

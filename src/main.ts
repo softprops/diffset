@@ -13,7 +13,7 @@ async function run() {
         auth: config.githubToken,
         onRateLimit: (retryAfter, options) => {
           warning(
-            `Request quota exhausted for request ${options.method} ${options.url}`
+            `Request quota exhausted for request ${options.method} ${options.url}`,
           );
           if (options.request.retryCount === 0) {
             // only retries once
@@ -24,10 +24,10 @@ async function run() {
         onAbuseLimit: (retryAfter, options) => {
           // does not retry, only logs a warning
           warning(
-            `Abuse detected for request ${options.method} ${options.url}`
+            `Abuse detected for request ${options.method} ${options.url}`,
           );
         },
-      })
+      }),
     );
     const diffset = await differ.diff(intoParams(config));
     setOutput("files", diffset.join(" "));

@@ -18,7 +18,7 @@ describe("util", () => {
           owner: "owner",
           repo: "repo",
           ref: "b04376c43f66b8beed87abe6e28504781a4e461d",
-        }
+        },
       );
     });
   });
@@ -42,7 +42,7 @@ describe("util", () => {
             foo_files: "*.foo",
           },
           sha: "b04376c43f66b8beed87abe6e28504781a4e461d",
-        }
+        },
       );
     });
     it("parses configuration from env including custom base", () => {
@@ -65,7 +65,7 @@ describe("util", () => {
             foo_files: "*.foo",
           },
           sha: "b04376c43f66b8beed87abe6e28504781a4e461d",
-        }
+        },
       );
     });
   });
