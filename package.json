@@ -27,7 +27,7 @@
     "minimatch": "^10.0.1"
   },
   "devDependencies": {
-    "@types/jest": "^29.2.3",
+    "@types/jest": "^29.5.13",
     "@types/minimatch": "^5.1.2",
     "@types/node": "^22.5.2",
     "@vercel/ncc": "^0.38.1",
