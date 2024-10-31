@@ -1,3 +1,8 @@
+## 2.1.2
+
+maintenance release with updated dependencies
+
+
 ## 2.1.1
 
 maintenance release with updated dependencies
