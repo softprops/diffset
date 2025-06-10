@@ -1,6 +1,8 @@
 import { parseConfig, intoParams } from "../src/util";
 import * as assert from "assert";
 
+import { describe, it } from "vitest";
+
 describe("util", () => {
   describe("infoParams", () => {
     it("transforms a config into diff params for heads", () => {

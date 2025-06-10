@@ -1,6 +1,8 @@
 import { sets, GitHubDiff } from "../src/diff";
 import * as assert from "assert";
 
+import { describe, it } from "vitest";
+
 describe("diff", () => {
   describe("GitHubDiff", () => {
     it("generates diff based on compare api", async () => {
