@@ -1,7 +1,6 @@
-import * as assert from 'assert';
 import { intoParams, parseConfig } from '../src/util';
 
-import { describe, it } from 'vitest';
+import { assert, describe, it } from 'vitest';
 
 describe('util', () => {
   describe('infoParams', () => {

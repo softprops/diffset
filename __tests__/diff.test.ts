@@ -1,7 +1,6 @@
-import * as assert from 'assert';
 import { sets } from '../src/diff';
 
-import { describe, it } from 'vitest';
+import { assert, describe, it } from 'vitest';
 
 describe('diff', () => {
   describe('GitHubDiff', () => {
