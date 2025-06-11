@@ -1,5 +1,5 @@
-import { Minimatch } from "minimatch";
-import { Octokit } from "@octokit/rest";
+import { Octokit } from '@octokit/rest';
+import { Minimatch } from 'minimatch';
 
 export type Params = {
   base: string;
@@ -46,7 +46,7 @@ export class GitHubDiff implements Diff {
       const commit = await this.github.repos.getCommit(params);
       return (
         commit.data.files
-          ?.filter((file) => file.status != "removed")
+          ?.filter((file) => file.status != 'removed')
           .map((file) => file.filename)
           .filter(isDefined) || []
       );
@@ -56,7 +56,7 @@ export class GitHubDiff implements Diff {
         ref: undefined,
       });
       return (response.data.files || [])
-        .filter((file) => file.status != "removed")
+        .filter((file) => file.status != 'removed')
         .map((file) => file.filename);
     }
   }

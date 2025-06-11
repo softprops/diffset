@@ -1,4 +1,4 @@
-import { Params } from "./diff";
+import { Params } from './diff';
 export interface Config {
   githubToken: string;
   githubRef: string;
@@ -14,18 +14,18 @@ type Env = Record<string, string | undefined>;
 const FileFilter = /INPUT_(\w+)_FILES/;
 
 const cleanRef = (ref: string): string => {
-  if (ref.indexOf("refs/heads/") === 0) {
+  if (ref.indexOf('refs/heads/') === 0) {
     return ref.substring(11);
   }
-  if (ref.indexOf("refs/tags/") === 0) {
+  if (ref.indexOf('refs/tags/') === 0) {
     return ref.substring(10);
   }
   return ref;
 };
 export const intoParams = (config: Config): Params => {
-  const [owner, repo] = config.githubRepository.split("/", 2);
+  const [owner, repo] = config.githubRepository.split('/', 2);
   const head = cleanRef(config.githubRef);
-  const base = config.base || "master";
+  const base = config.base || 'master';
   const ref = config.sha;
   return {
     base,
@@ -38,19 +38,16 @@ export const intoParams = (config: Config): Params => {
 
 export const parseConfig = (env: Env): Config => {
   return {
-    githubToken: env["INPUT_TOKEN"] || "",
-    githubRef: env.GITHUB_HEAD_REF || env.GITHUB_REF || "",
-    githubRepository: env.GITHUB_REPOSITORY || "",
+    githubToken: env['INPUT_TOKEN'] || '',
+    githubRef: env.GITHUB_HEAD_REF || env.GITHUB_REF || '',
+    githubRepository: env.GITHUB_REPOSITORY || '',
     base: env.INPUT_BASE,
-    fileFilters: Array.from(Object.entries(env)).reduce(
-      (filters, [key, value]) => {
-        if (FileFilter.test(key)) {
-          filters[key.toLowerCase().replace("input_", "")] = value;
-        }
-        return filters;
-      },
-      {},
-    ),
-    sha: env.GITHUB_SHA || "",
+    fileFilters: Array.from(Object.entries(env)).reduce((filters, [key, value]) => {
+      if (FileFilter.test(key)) {
+        filters[key.toLowerCase().replace('input_', '')] = value;
+      }
+      return filters;
+    }, {}),
+    sha: env.GITHUB_SHA || '',
   };
 };
