@@ -38,7 +38,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 +     - name: Diffset
 +       id: diffset
 +       uses: softprops/diffset@v2
@@ -64,7 +64,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Diffset
         id: diffset
         uses: softprops/diffset@v2
@@ -93,7 +93,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
       - name: Diffset
         id: diffset
         uses: softprops/diffset@v2
@@ -148,7 +148,7 @@ jobs:
            src/or-these/**/*.ts
       - name: Checkout
 +       if: diffset.outputs.special_files
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 ```
 
 Doug Tangren (softprops) 2019-2021
