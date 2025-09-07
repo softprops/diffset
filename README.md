@@ -41,7 +41,7 @@ jobs:
         uses: actions/checkout@v5
 +     - name: Diffset
 +       id: diffset
-+       uses: softprops/diffset@v2
++       uses: softprops/diffset@v3
       - name: Print Diffset
         run: ls -al ${{ steps.diffset.outputs.files }}
 ```
@@ -67,7 +67,7 @@ jobs:
         uses: actions/checkout@v5
       - name: Diffset
         id: diffset
-        uses: softprops/diffset@v2
+        uses: softprops/diffset@v3
 +       with:
 +         special_files: |
 +           src/special/**/*.ts
@@ -96,7 +96,7 @@ jobs:
         uses: actions/checkout@v5
       - name: Diffset
         id: diffset
-        uses: softprops/diffset@v2
+        uses: softprops/diffset@v3
 +       with:
 +         base: develop
       - name: Other work
@@ -141,7 +141,7 @@ jobs:
     steps:
       - name: Diffset
         id: diffset
-        uses: softprops/diffset@v2
+        uses: softprops/diffset@v3
        with:
          special_files: |
            src/special/**/*.ts
