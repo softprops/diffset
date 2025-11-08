@@ -1,3 +1,7 @@
+## 3.0.1
+
+maintenance release with updated dependencies
+
 ## 3.0.0
 
 - Upgrade Node.js version to 24 in action
