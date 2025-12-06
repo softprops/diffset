@@ -1,16 +1,19 @@
+## 3.0.2
+
+maintenance release with updated dependencies
+
 ## 3.0.1
 
 maintenance release with updated dependencies
 
 ## 3.0.0
 
-- Upgrade Node.js version to 24 in action
-Make sure your runner is on version v2.327.1 or later to ensure compatibility with this release. [Release Notes](https://github.com/actions/runner/releases/tag/v2.327.1)
+- Upgrade Node.js version to 24 in action. Make sure your runner is on version v2.327.1 or later to ensure compatibility with this release. [Release Notes](https://github.com/actions/runner/releases/tag/v2.327.1)
 
 ## 2.2.0
 
-- Migrate from jest to vitest
-- Bump to use node 24
+- Migrate from Jest to Vitest
+- Bump to use Node.js 24
 - Dependency updates
 
 ## 2.1.6
@@ -40,9 +43,11 @@ maintenance release with updated dependencies
 ## 2.1.0
 
 ### Exciting New Features 🎉
+
 * feat: get github.token as default input by @chenrui333 in https://github.com/softprops/diffset/pull/14
 
 ### Other Changes 🔄
+
 * fix GITHUB_TOKEN ref by @chenrui333 in https://github.com/softprops/diffset/pull/16
 
 ## 2.0.1
@@ -52,7 +57,7 @@ maintenance release with updated dependencies
 
 ## 2.0.0
 
-- upgrade to nodejs 20
+- upgrade to Node.js 20
 - update deps
 
 ## 1.0.0
@@ -69,7 +74,7 @@ maintenance release with updated dependencies
 
 ## 0.1.5
 
-- bug fix. upgrade to latest octokit now double escapes git flow style branches
+- bug fix. upgrade to latest octokit now double-escapes Git-flow–style branches
 
 ## 0.1.4
 
@@ -83,7 +88,7 @@ maintenance release with updated dependencies
 
 - add support for push to master
 
-  This action uses the ref that triggered an event as a basis of comparision with a base, typically your default branch. for pushes to you default branch these values will be the same and yielded no diff! In this version the plugin uses the merge sha to resolve files in a merge commit to yield a diff.
+  This action uses the ref that triggered an event as a basis of comparison with a base, typically your default branch. For pushes to your default branch, these values will be the same and yield no diff! In this version, the plugin uses the merge SHA to resolve files in a merge commit and produce a diff.
 
 - add support for pull_request event diffs
 

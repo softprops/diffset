@@ -1,6 +1,6 @@
 {
   "name": "diffset",
-  "version": "3.0.1",
+  "version": "3.0.2",
   "private": true,
   "description": "GitHub Action for producing list of files that changed between branches",
   "main": "lib/main.js",
