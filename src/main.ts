@@ -1,15 +1,16 @@
 import { debug, setFailed, setOutput, warning } from '@actions/core';
+import { throttling } from '@octokit/plugin-throttling';
 import { Octokit } from '@octokit/rest';
 import { env } from 'process';
-import { GitHubDiff, sets } from './diff';
-import { intoParams, parseConfig } from './util';
+import { GitHubDiff, sets } from './diff.js';
+import { intoParams, parseConfig } from './util.js';
 
 async function run() {
   try {
     const config = parseConfig(env);
-    Octokit.plugin(require('@octokit/plugin-throttling'));
+    const ThrottledOctokit = Octokit.plugin(throttling);
     const differ = new GitHubDiff(
-      new Octokit({
+      new ThrottledOctokit({
         auth: config.githubToken,
         onRateLimit: (retryAfter, options) => {
           warning(`Request quota exhausted for request ${options.method} ${options.url}`);
