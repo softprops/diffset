@@ -1,4 +1,4 @@
-import { Params } from './diff';
+import { Params } from './diff.js';
 export interface Config {
   githubToken: string;
   githubRef: string;
