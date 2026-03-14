@@ -1,28 +1,29 @@
 import { debug, setFailed, setOutput, warning } from '@actions/core';
 import { throttling } from '@octokit/plugin-throttling';
 import { Octokit } from '@octokit/rest';
-import { env } from 'process';
 import { GitHubDiff, sets } from './diff.js';
 import { intoParams, parseConfig } from './util.js';
 
 async function run() {
   try {
-    const config = parseConfig(env);
+    const config = parseConfig(process.env);
     const ThrottledOctokit = Octokit.plugin(throttling);
     const differ = new GitHubDiff(
       new ThrottledOctokit({
         auth: config.githubToken,
-        onRateLimit: (retryAfter, options) => {
-          warning(`Request quota exhausted for request ${options.method} ${options.url}`);
-          if (options.request.retryCount === 0) {
-            // only retries once
-            warning(`Retrying after ${retryAfter} seconds!`);
-            return true;
-          }
-        },
-        onAbuseLimit: (retryAfter, options) => {
-          // does not retry, only logs a warning
-          warning(`Abuse detected for request ${options.method} ${options.url}`);
+        throttle: {
+          onRateLimit: (retryAfter, options) => {
+            warning(`Request quota exhausted for request ${options.method} ${options.url}`);
+            if (options.request.retryCount === 0) {
+              // only retries once
+              warning(`Retrying after ${retryAfter} seconds!`);
+              return true;
+            }
+          },
+          onSecondaryRateLimit: (retryAfter, options) => {
+            // does not retry, only logs a warning
+            warning(`Abuse detected for request ${options.method} ${options.url}`);
+          },
         },
       }),
     );
