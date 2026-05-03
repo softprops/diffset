@@ -2,8 +2,6 @@
 name: "diff-set"
 description: "Github Action for producing lists of files that changed between branches"
 author: "softprops"
-env:
-  "GITHUB_TOKEN": "Repository token provided by Github Actions secrets"
 runs:
   using: "node24"
   main: "dist/index.js"
@@ -14,6 +12,9 @@ inputs:
     default: ${{ github.token }}
   base:
     description: "Base branch to compare with (defaults to master)"
+outputs:
+  files:
+    description: "Space-delimited list of changed files"
 branding:
   color: "green"
   icon: "activity"
