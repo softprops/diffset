@@ -12,6 +12,10 @@ inputs:
     default: ${{ github.token }}
   base:
     description: "Base branch to compare with (defaults to master)"
+  include_removed:
+    description: "Include removed files in diff outputs"
+    required: false
+    default: "false"
 outputs:
   files:
     description: "Space-delimited list of changed files"

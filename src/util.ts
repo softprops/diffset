@@ -7,6 +7,7 @@ export interface Config {
   githubRepository: string;
   base?: string | undefined;
   fileFilters: Record<string, string>;
+  includeRemoved?: boolean;
   pullBase?: string;
   pullHead?: string;
   pullNumber?: number;
@@ -59,6 +60,9 @@ export const intoParams = (config: Config): Params => {
     repo,
     ref,
   };
+  if (config.includeRemoved) {
+    params.includeRemoved = true;
+  }
   if (config.pullNumber != undefined && config.base == undefined) {
     params.pullNumber = config.pullNumber;
   }
@@ -88,10 +92,11 @@ const pullHeadRef = (pullRequest: GitHubEventPayload['pull_request']): string | 
 export const parseConfig = (env: Env): Config => {
   const inputBase = env.INPUT_BASE?.trim();
   const base = inputBase ? inputBase : undefined;
-  const pullRequest = base == undefined ? pullRequestFromEvent(env) : undefined;
-  const pullNumber = pullRequest?.number;
-  const pullBase = pullRequest?.base?.ref;
+  const pullRequest = pullRequestFromEvent(env);
+  const pullNumber = base == undefined ? pullRequest?.number : undefined;
+  const pullBase = base == undefined ? pullRequest?.base?.ref : undefined;
   const pullHead = pullHeadRef(pullRequest);
+  const includeRemoved = env.INPUT_INCLUDE_REMOVED?.trim().toLowerCase() === 'true';
 
   return {
     githubToken: env['INPUT_TOKEN'] || '',
@@ -104,6 +109,7 @@ export const parseConfig = (env: Env): Config => {
       }
       return filters;
     }, {}),
+    ...(includeRemoved ? { includeRemoved } : {}),
     ...(pullBase != undefined ? { pullBase } : {}),
     ...(pullHead != undefined ? { pullHead } : {}),
     ...(pullNumber != undefined ? { pullNumber } : {}),

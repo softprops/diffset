@@ -48,6 +48,26 @@ describe('util', () => {
         },
       );
     });
+    it('includes removed files when configured', () => {
+      assert.deepStrictEqual(
+        intoParams({
+          githubToken: 'aeiou',
+          githubRef: 'refs/heads/branch',
+          githubRepository: 'owner/repo',
+          fileFilters: {},
+          includeRemoved: true,
+          sha: 'b04376c43f66b8beed87abe6e28504781a4e461d',
+        }),
+        {
+          base: 'master',
+          head: 'branch',
+          includeRemoved: true,
+          owner: 'owner',
+          repo: 'repo',
+          ref: 'b04376c43f66b8beed87abe6e28504781a4e461d',
+        },
+      );
+    });
     it('omits pull request number when a custom base is configured', () => {
       assert.deepStrictEqual(
         intoParams({
@@ -56,12 +76,13 @@ describe('util', () => {
           githubRepository: 'owner/repo',
           base: 'develop',
           fileFilters: {},
+          pullHead: 'contributor:feature',
           pullNumber: 123,
           sha: 'b04376c43f66b8beed87abe6e28504781a4e461d',
         }),
         {
           base: 'develop',
-          head: 'refs/pull/123/merge',
+          head: 'contributor:feature',
           owner: 'owner',
           repo: 'repo',
           ref: 'b04376c43f66b8beed87abe6e28504781a4e461d',
@@ -78,6 +99,7 @@ describe('util', () => {
           GITHUB_SHA: 'b04376c43f66b8beed87abe6e28504781a4e461d',
           INPUT_TOKEN: 'aeiou',
           INPUT_FOO_FILES: '*.foo',
+          INPUT_INCLUDE_REMOVED: 'true',
           INPUT_BAR: 'ignored',
         }),
         {
@@ -88,6 +110,7 @@ describe('util', () => {
           fileFilters: {
             foo_files: '*.foo',
           },
+          includeRemoved: true,
           sha: 'b04376c43f66b8beed87abe6e28504781a4e461d',
         },
       );
@@ -168,7 +191,23 @@ describe('util', () => {
     it('ignores pull request number when custom base is configured', () => {
       const eventDir = mkdtempSync(join(tmpdir(), 'diffset-'));
       const eventPath = join(eventDir, 'event.json');
-      writeFileSync(eventPath, JSON.stringify({ pull_request: { number: 123 } }));
+      writeFileSync(
+        eventPath,
+        JSON.stringify({
+          pull_request: {
+            base: {
+              ref: 'main',
+              repo: { full_name: 'softprops/diffset' },
+            },
+            head: {
+              label: 'contributor:feature',
+              ref: 'feature',
+              repo: { full_name: 'contributor/diffset' },
+            },
+            number: 123,
+          },
+        }),
+      );
 
       try {
         assert.deepStrictEqual(
@@ -187,6 +226,7 @@ describe('util', () => {
             githubToken: 'aeiou',
             base: 'develop',
             fileFilters: {},
+            pullHead: 'contributor:feature',
             sha: 'b04376c43f66b8beed87abe6e28504781a4e461d',
           },
         );
