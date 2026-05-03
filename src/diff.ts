@@ -4,6 +4,7 @@ import { Minimatch } from 'minimatch';
 export type Params = {
   base: string;
   head: string;
+  includeRemoved?: boolean;
   owner: string;
   pullNumber?: number;
   repo: string;
@@ -44,9 +45,9 @@ const isDefined = <T>(s: T | undefined): s is T => {
   return s != undefined;
 };
 
-const filenames = (files: Array<ChangedFile> | undefined): Array<string> =>
+const filenames = (files: Array<ChangedFile> | undefined, includeRemoved = false): Array<string> =>
   files
-    ?.filter((file) => file.status != 'removed')
+    ?.filter((file) => includeRemoved || file.status != 'removed')
     .map((file) => file.filename)
     .filter(isDefined) || [];
 
@@ -65,7 +66,7 @@ export class GitHubDiff implements Diff {
           repo: params.repo,
           pull_number: params.pullNumber,
         });
-        return filenames(files);
+        return filenames(files, params.includeRemoved);
       }
     }
 
@@ -73,19 +74,19 @@ export class GitHubDiff implements Diff {
   }
 
   private async compare(params: Params): Promise<Array<string>> {
-    const { pullNumber: _pullNumber, ...compareParams } = params;
+    const { includeRemoved, pullNumber: _pullNumber, ...compareParams } = params;
 
     // if this is a merge to master push
     // base and head will both be the same
     if (compareParams.base === compareParams.head) {
       const commit = await this.github.repos.getCommit(compareParams);
-      return filenames(commit.data.files);
+      return filenames(commit.data.files, includeRemoved);
     } else {
       const response = await this.github.repos.compareCommits({
         ...compareParams,
         ref: undefined,
       });
-      return filenames(response.data.files);
+      return filenames(response.data.files, includeRemoved);
     }
   }
 }

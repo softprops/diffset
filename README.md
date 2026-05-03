@@ -24,7 +24,7 @@ Many command line tools accept a list of files as inputs to limit the amount of 
 
 ## 🤸 Usage
 
-The typical setup for diffset involves adding job step using `softprops/diffset@v1`.
+The typical setup for diffset involves adding job step using `softprops/diffset@v3`.
 
 This will collect a list of files that have changed and export them to an output named `files`. It retrieves this list of files from the GitHub api and as such it will need your repositories `GITHUB_TOKEN` secret.
 
@@ -73,7 +73,7 @@ jobs:
 +           src/special/**/*.ts
 +           src/or-these/**/*.ts
       - name: Print Special Files
-        if: diffset.outputs.special_files
+        if: steps.diffset.outputs.special_files
         run: ls -al ${{ steps.diffset.outputs.special_files }}
       - name: Other work
         run: echo "..."
@@ -110,10 +110,13 @@ The following are optional as `step.with` keys
 This action supports dynamically named inputs which will result in dynamically named outputs.
 Specifically this action accepts any inputs with a suffix of `_files`
 
-| Name      | Type   | Description                                      |
-| --------- | ------ | ------------------------------------------------ |
-| `*_files` | string | A file pattern to filter changed files           |
-| `base`    | string | Base branch for comparison. Defaults to "master" |
+| Name              | Type    | Description                                                       |
+| ----------------- | ------- | ----------------------------------------------------------------- |
+| `*_files`         | string  | A file pattern to filter changed files                            |
+| `base`            | string  | Base branch for comparison. Defaults to "master"                  |
+| `include_removed` | boolean | Include removed files in diff outputs. Defaults to `false`        |
+
+Removed files are excluded from outputs by default because deleted paths usually cannot be passed to tools after checkout.
 
 #### outputs
 
@@ -124,6 +127,7 @@ Specifically this action yields outputs based on inputs named with a suffix of `
 
 | Name      | Type   | Description                                                                |
 | --------- | ------ | -------------------------------------------------------------------------- |
+| `files`   | string | A space delimited list of changed files                                    |
 | `*_files` | string | A space delimited list of files that changed that matched an input pattern |
 
 ### 💁‍♀️ pro tips
@@ -147,7 +151,7 @@ jobs:
            src/special/**/*.ts
            src/or-these/**/*.ts
       - name: Checkout
-+       if: diffset.outputs.special_files
++       if: steps.diffset.outputs.special_files
         uses: actions/checkout@v6
 ```
 

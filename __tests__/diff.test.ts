@@ -69,6 +69,22 @@ describe('diff', () => {
       });
     });
 
+    it('includes removed files when requested', async () => {
+      const { github } = fakeGithub({
+        compareFiles: [
+          { status: 'added', filename: 'added.txt' },
+          { status: 'removed', filename: 'removed.txt' },
+        ],
+      });
+
+      const response = await new GitHubDiff(github as never).diff({
+        ...params,
+        includeRemoved: true,
+      });
+
+      assert.deepStrictEqual(response, ['added.txt', 'removed.txt']);
+    });
+
     it('generates diff based on the commit api for same-ref pushes', async () => {
       const { calls, github } = fakeGithub({
         commitFiles: [
