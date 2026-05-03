@@ -15,6 +15,7 @@ export type Params = {
 
 export type ChangedFile = {
   filename?: string;
+  previous_filename?: string;
   status?: string;
 };
 
@@ -95,6 +96,9 @@ export class GitHubDiff implements Diff {
         (response) => (response.data as { files?: Array<ChangedFile> }).files || [],
       )) as Array<ChangedFile>;
       commitFiles.forEach((file) => {
+        if (file.previous_filename != undefined) {
+          files.delete(file.previous_filename);
+        }
         if (file.filename != undefined) {
           files.set(file.filename, file);
         }

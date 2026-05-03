@@ -2,7 +2,7 @@ import { GitHubDiff, Params, sets } from '../src/diff';
 
 import { assert, describe, it } from 'vitest';
 
-type TestFile = { filename?: string; status?: string };
+type TestFile = { filename?: string; previous_filename?: string; status?: string };
 type CommitResponse = { data: { files?: Array<TestFile> } };
 type PaginateMap = (response: CommitResponse) => Array<TestFile>;
 
@@ -137,6 +137,30 @@ describe('diff', () => {
         { owner: 'owner', repo: 'repo', ref: 'first', per_page: 100 },
         { owner: 'owner', repo: 'repo', ref: 'second', per_page: 100 },
       ]);
+    });
+
+    it('removes superseded paths when pushed commits rename files', async () => {
+      const { github } = fakeGithub({
+        commitPagesByRef: {
+          first: [[{ status: 'modified', filename: 'docs/old.md' }]],
+          second: [
+            [
+              {
+                status: 'renamed',
+                filename: 'docs/new.md',
+                previous_filename: 'docs/old.md',
+              },
+            ],
+          ],
+        },
+      });
+
+      const response = await new GitHubDiff(github as never).diff({
+        ...params,
+        commitRefs: ['first', 'second'],
+      });
+
+      assert.deepStrictEqual(response, ['docs/new.md']);
     });
 
     it('includes removed files from pushed commit refs when requested', async () => {
