@@ -45,7 +45,9 @@ jobs:
       - name: Print Diffset
         env:
           DIFFSET_FILES: ${{ steps.diffset.outputs.files }}
-        run: ls -al ${DIFFSET_FILES}
+        run: |
+          read -r -a diffset_files <<< "${DIFFSET_FILES}"
+          ls -al "${diffset_files[@]}"
 ```
 
 ### 💅 Customizing
@@ -78,7 +80,9 @@ jobs:
         if: steps.diffset.outputs.special_files
         env:
           SPECIAL_FILES: ${{ steps.diffset.outputs.special_files }}
-        run: ls -al ${SPECIAL_FILES}
+        run: |
+          read -r -a special_files <<< "${SPECIAL_FILES}"
+          ls -al "${special_files[@]}"
       - name: Other work
         run: echo "..."
 ```
@@ -106,7 +110,9 @@ jobs:
       - name: Other work
         env:
           DIFFSET_FILES: ${{ steps.diffset.outputs.files }}
-        run: ls -al ${DIFFSET_FILES}
+        run: |
+          read -r -a diffset_files <<< "${DIFFSET_FILES}"
+          ls -al "${diffset_files[@]}"
 ```
 
 #### inputs
@@ -137,6 +143,9 @@ Specifically this action yields outputs based on inputs named with a suffix of `
 | --------- | ------ | -------------------------------------------------------------------------- |
 | `files`   | string | A space delimited list of changed files                                    |
 | `*_files` | string | A space delimited list of files that changed that matched an input pattern |
+
+When passing outputs to shell commands, split the space-delimited value into an
+array first so each path is passed as a separate argument.
 
 ### 💁‍♀️ pro tips
 

@@ -93,8 +93,17 @@ export class GitHubDiff implements Diff {
     // if this is a merge to the base branch
     // base and head will both be the same
     if (compareParams.base === compareParams.head) {
-      const commit = await this.github.repos.getCommit(compareParams);
-      return commit.data.files || [];
+      const files = await this.github.paginate(
+        this.github.repos.getCommit,
+        {
+          owner: compareParams.owner,
+          repo: compareParams.repo,
+          ref: compareParams.ref,
+          per_page: 100,
+        },
+        (response) => (response.data as { files?: Array<ChangedFile> }).files || [],
+      );
+      return files as Array<ChangedFile>;
     } else {
       const response = await this.github.repos.compareCommits({
         ...compareParams,
