@@ -7,6 +7,8 @@ export interface Config {
   githubRepository: string;
   base?: string | undefined;
   fileFilters: Record<string, string>;
+  pullBase?: string;
+  pullHead?: string;
   pullNumber?: number;
   sha: string;
 }
@@ -19,6 +21,19 @@ const FileFilter = /^INPUT_(\w+)_FILES$/;
 type GitHubEventPayload = {
   number?: number;
   pull_request?: {
+    base?: {
+      ref?: string;
+      repo?: {
+        full_name?: string;
+      };
+    };
+    head?: {
+      label?: string;
+      ref?: string;
+      repo?: {
+        full_name?: string;
+      };
+    };
     number?: number;
   };
 };
@@ -34,8 +49,8 @@ const cleanRef = (ref: string): string => {
 };
 export const intoParams = (config: Config): Params => {
   const [owner, repo] = config.githubRepository.split('/', 2);
-  const head = cleanRef(config.githubRef);
-  const base = config.base || 'master';
+  const head = config.pullHead || cleanRef(config.githubRef);
+  const base = config.base || config.pullBase || 'master';
   const ref = config.sha;
   const params: Params = {
     base,
@@ -50,23 +65,33 @@ export const intoParams = (config: Config): Params => {
   return params;
 };
 
-const pullNumberFromEvent = (env: Env): number | undefined => {
+const pullRequestFromEvent = (env: Env): GitHubEventPayload['pull_request'] | undefined => {
   if (!env.GITHUB_EVENT_NAME?.startsWith('pull_request') || env.GITHUB_EVENT_PATH == undefined) {
     return undefined;
   }
 
   try {
     const event = JSON.parse(readFileSync(env.GITHUB_EVENT_PATH, 'utf8')) as GitHubEventPayload;
-    const pullNumber = event.pull_request?.number ?? event.number;
-    return Number.isInteger(pullNumber) ? pullNumber : undefined;
+    return event.pull_request ?? (event.number != undefined ? { number: event.number } : undefined);
   } catch {
     return undefined;
   }
 };
 
+const pullHeadRef = (pullRequest: GitHubEventPayload['pull_request']): string | undefined => {
+  if (pullRequest?.head?.repo?.full_name != pullRequest?.base?.repo?.full_name) {
+    return pullRequest?.head?.label;
+  }
+  return pullRequest?.head?.ref;
+};
+
 export const parseConfig = (env: Env): Config => {
-  const base = env.INPUT_BASE?.trim() ? env.INPUT_BASE : undefined;
-  const pullNumber = base == undefined ? pullNumberFromEvent(env) : undefined;
+  const inputBase = env.INPUT_BASE?.trim();
+  const base = inputBase ? inputBase : undefined;
+  const pullRequest = base == undefined ? pullRequestFromEvent(env) : undefined;
+  const pullNumber = pullRequest?.number;
+  const pullBase = pullRequest?.base?.ref;
+  const pullHead = pullHeadRef(pullRequest);
 
   return {
     githubToken: env['INPUT_TOKEN'] || '',
@@ -79,6 +104,8 @@ export const parseConfig = (env: Env): Config => {
       }
       return filters;
     }, {}),
+    ...(pullBase != undefined ? { pullBase } : {}),
+    ...(pullHead != undefined ? { pullHead } : {}),
     ...(pullNumber != undefined ? { pullNumber } : {}),
     sha: env.GITHUB_SHA || '',
   };

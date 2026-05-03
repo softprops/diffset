@@ -12,10 +12,12 @@ const params: Params = {
 
 const fakeGithub = ({
   commitFiles = [],
+  compareError,
   compareFiles = [],
   pullFiles = [],
 }: {
   commitFiles?: Array<{ filename?: string; status?: string }>;
+  compareError?: Error;
   compareFiles?: Array<{ filename?: string; status?: string }>;
   pullFiles?: Array<{ filename?: string; status?: string }>;
 }) => {
@@ -29,6 +31,9 @@ const fakeGithub = ({
       },
       compareCommits: async (request: unknown) => {
         calls.compareCommits = request;
+        if (compareError != undefined) {
+          throw compareError;
+        }
         return { data: { files: compareFiles } };
       },
     },
@@ -80,8 +85,34 @@ describe('diff', () => {
       assert.deepStrictEqual(calls.getCommit, sameRefParams);
     });
 
-    it('generates diff based on pull request files when a pull number is available', async () => {
+    it('keeps pull request diffs on the compare api when it succeeds', async () => {
       const { calls, github } = fakeGithub({
+        compareFiles: [
+          { status: 'added', filename: 'src/main.ts' },
+          { status: 'removed', filename: 'src/old.ts' },
+        ],
+      });
+
+      const response = await new GitHubDiff(github as never).diff({
+        ...params,
+        base: 'main',
+        head: 'fork:feature',
+        pullNumber: 123,
+      });
+
+      assert.deepStrictEqual(response, ['src/main.ts']);
+      assert.deepStrictEqual(calls.compareCommits, {
+        ...params,
+        base: 'main',
+        head: 'fork:feature',
+        ref: undefined,
+      });
+      assert.strictEqual(calls.paginate, undefined);
+    });
+
+    it('falls back to pull request files when compare fails', async () => {
+      const { calls, github } = fakeGithub({
+        compareError: new Error('not found'),
         pullFiles: [
           { status: 'added', filename: 'src/main.ts' },
           { status: 'removed', filename: 'src/old.ts' },
@@ -94,13 +125,16 @@ describe('diff', () => {
       });
 
       assert.deepStrictEqual(response, ['src/main.ts']);
+      assert.deepStrictEqual(calls.compareCommits, {
+        ...params,
+        ref: undefined,
+      });
       assert.strictEqual(calls.paginateEndpoint, github.pulls.listFiles);
       assert.deepStrictEqual(calls.paginate, {
         owner: 'owner',
         repo: 'repo',
         pull_number: 123,
       });
-      assert.strictEqual(calls.compareCommits, undefined);
     });
   });
   describe('sets', () => {

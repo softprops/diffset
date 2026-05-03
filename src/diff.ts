@@ -57,22 +57,32 @@ export class GitHubDiff implements Diff {
   }
   async diff(params: Params): Promise<Array<string>> {
     if (params.pullNumber != undefined) {
-      const files = await this.github.paginate(this.github.pulls.listFiles, {
-        owner: params.owner,
-        repo: params.repo,
-        pull_number: params.pullNumber,
-      });
-      return filenames(files);
+      try {
+        return await this.compare(params);
+      } catch {
+        const files = await this.github.paginate(this.github.pulls.listFiles, {
+          owner: params.owner,
+          repo: params.repo,
+          pull_number: params.pullNumber,
+        });
+        return filenames(files);
+      }
     }
+
+    return this.compare(params);
+  }
+
+  private async compare(params: Params): Promise<Array<string>> {
+    const { pullNumber: _pullNumber, ...compareParams } = params;
 
     // if this is a merge to master push
     // base and head will both be the same
-    if (params.base === params.head) {
-      const commit = await this.github.repos.getCommit(params);
+    if (compareParams.base === compareParams.head) {
+      const commit = await this.github.repos.getCommit(compareParams);
       return filenames(commit.data.files);
     } else {
       const response = await this.github.repos.compareCommits({
-        ...params,
+        ...compareParams,
         ref: undefined,
       });
       return filenames(response.data.files);

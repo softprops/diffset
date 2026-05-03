@@ -33,12 +33,14 @@ describe('util', () => {
           githubRef: 'refs/pull/123/merge',
           githubRepository: 'owner/repo',
           fileFilters: {},
+          pullBase: 'main',
+          pullHead: 'fork:branch',
           pullNumber: 123,
           sha: 'b04376c43f66b8beed87abe6e28504781a4e461d',
         }),
         {
-          base: 'master',
-          head: 'refs/pull/123/merge',
+          base: 'main',
+          head: 'fork:branch',
           owner: 'owner',
           pullNumber: 123,
           repo: 'repo',
@@ -116,7 +118,23 @@ describe('util', () => {
     it('parses pull request number from the GitHub event payload', () => {
       const eventDir = mkdtempSync(join(tmpdir(), 'diffset-'));
       const eventPath = join(eventDir, 'event.json');
-      writeFileSync(eventPath, JSON.stringify({ pull_request: { number: 123 } }));
+      writeFileSync(
+        eventPath,
+        JSON.stringify({
+          pull_request: {
+            base: {
+              ref: 'main',
+              repo: { full_name: 'softprops/diffset' },
+            },
+            head: {
+              label: 'contributor:feature',
+              ref: 'feature',
+              repo: { full_name: 'contributor/diffset' },
+            },
+            number: 123,
+          },
+        }),
+      );
 
       try {
         assert.deepStrictEqual(
@@ -137,6 +155,8 @@ describe('util', () => {
             fileFilters: {
               foo_files: '*.foo',
             },
+            pullBase: 'main',
+            pullHead: 'contributor:feature',
             pullNumber: 123,
             sha: 'b04376c43f66b8beed87abe6e28504781a4e461d',
           },
