@@ -113,6 +113,7 @@ describe('diff', () => {
         ...params,
         base: 'main',
         head: 'fork:feature',
+        pullChangedFiles: 2,
         pullNumber: 123,
       });
 
@@ -123,6 +124,73 @@ describe('diff', () => {
         head: 'fork:feature',
         ref: undefined,
       });
+      assert.strictEqual(calls.paginate, undefined);
+    });
+
+    it('falls back to pull request files when compare output is truncated', async () => {
+      const { calls, github } = fakeGithub({
+        compareFiles: [{ status: 'added', filename: 'src/main.ts' }],
+        pullFiles: [
+          { status: 'added', filename: 'src/main.ts' },
+          { status: 'removed', filename: 'src/old.ts' },
+          { status: 'modified', filename: 'src/other.ts' },
+        ],
+      });
+
+      const response = await new GitHubDiff(github as never).diff({
+        ...params,
+        pullChangedFiles: 3,
+        pullNumber: 123,
+      });
+
+      assert.deepStrictEqual(response, ['src/main.ts', 'src/other.ts']);
+      assert.deepStrictEqual(calls.compareCommits, {
+        ...params,
+        ref: undefined,
+      });
+      assert.strictEqual(calls.paginateEndpoint, github.pulls.listFiles);
+      assert.deepStrictEqual(calls.paginate, {
+        owner: 'owner',
+        repo: 'repo',
+        pull_number: 123,
+      });
+    });
+
+    it('includes removed files from truncated pull request fallback when requested', async () => {
+      const { github } = fakeGithub({
+        compareFiles: [{ status: 'added', filename: 'src/main.ts' }],
+        pullFiles: [
+          { status: 'added', filename: 'src/main.ts' },
+          { status: 'removed', filename: 'src/old.ts' },
+        ],
+      });
+
+      const response = await new GitHubDiff(github as never).diff({
+        ...params,
+        includeRemoved: true,
+        pullChangedFiles: 2,
+        pullNumber: 123,
+      });
+
+      assert.deepStrictEqual(response, ['src/main.ts', 'src/old.ts']);
+    });
+
+    it('does not infer truncation when pull request changed file count is unavailable', async () => {
+      const compareFiles = Array.from({ length: 300 }, (_, index) => ({
+        status: 'added',
+        filename: `src/file-${index}.ts`,
+      }));
+      const { calls, github } = fakeGithub({ compareFiles });
+
+      const response = await new GitHubDiff(github as never).diff({
+        ...params,
+        pullNumber: 123,
+      });
+
+      assert.deepStrictEqual(
+        response,
+        compareFiles.map((file) => file.filename),
+      );
       assert.strictEqual(calls.paginate, undefined);
     });
 

@@ -11,7 +11,7 @@ inputs:
     required: false
     default: ${{ github.token }}
   base:
-    description: "Base branch to compare with (defaults to master)"
+    description: "Base branch to compare with (defaults to the repository default branch)"
   include_removed:
     description: "Include removed files in diff outputs"
     required: false

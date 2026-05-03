@@ -29,11 +29,13 @@ describe('util', () => {
     it('includes pull request number when no custom base is configured', () => {
       assert.deepStrictEqual(
         intoParams({
+          defaultBranch: 'trunk',
           githubToken: 'aeiou',
           githubRef: 'refs/pull/123/merge',
           githubRepository: 'owner/repo',
           fileFilters: {},
           pullBase: 'main',
+          pullChangedFiles: 2,
           pullHead: 'fork:branch',
           pullNumber: 123,
           sha: 'b04376c43f66b8beed87abe6e28504781a4e461d',
@@ -42,6 +44,7 @@ describe('util', () => {
           base: 'main',
           head: 'fork:branch',
           owner: 'owner',
+          pullChangedFiles: 2,
           pullNumber: 123,
           repo: 'repo',
           ref: 'b04376c43f66b8beed87abe6e28504781a4e461d',
@@ -71,11 +74,13 @@ describe('util', () => {
     it('omits pull request number when a custom base is configured', () => {
       assert.deepStrictEqual(
         intoParams({
+          defaultBranch: 'main',
           githubToken: 'aeiou',
           githubRef: 'refs/pull/123/merge',
           githubRepository: 'owner/repo',
           base: 'develop',
           fileFilters: {},
+          pullChangedFiles: 2,
           pullHead: 'contributor:feature',
           pullNumber: 123,
           sha: 'b04376c43f66b8beed87abe6e28504781a4e461d',
@@ -138,12 +143,71 @@ describe('util', () => {
         },
       );
     });
+    it('uses repository default branch from the event payload', () => {
+      const eventDir = mkdtempSync(join(tmpdir(), 'diffset-'));
+      const eventPath = join(eventDir, 'event.json');
+      writeFileSync(eventPath, JSON.stringify({ repository: { default_branch: 'main' } }));
+
+      try {
+        const config = parseConfig({
+          GITHUB_EVENT_NAME: 'push',
+          GITHUB_EVENT_PATH: eventPath,
+          GITHUB_REF: 'refs/heads/feature',
+          GITHUB_REPOSITORY: 'softprops/diffset',
+          GITHUB_SHA: 'b04376c43f66b8beed87abe6e28504781a4e461d',
+          INPUT_TOKEN: 'aeiou',
+        });
+
+        assert.deepStrictEqual(config, {
+          githubRef: 'refs/heads/feature',
+          githubRepository: 'softprops/diffset',
+          githubToken: 'aeiou',
+          base: undefined,
+          defaultBranch: 'main',
+          fileFilters: {},
+          sha: 'b04376c43f66b8beed87abe6e28504781a4e461d',
+        });
+        assert.deepStrictEqual(intoParams(config), {
+          base: 'main',
+          head: 'feature',
+          owner: 'softprops',
+          repo: 'diffset',
+          ref: 'b04376c43f66b8beed87abe6e28504781a4e461d',
+        });
+      } finally {
+        rmSync(eventDir, { force: true, recursive: true });
+      }
+    });
+    it('prefers custom base over repository default branch', () => {
+      const eventDir = mkdtempSync(join(tmpdir(), 'diffset-'));
+      const eventPath = join(eventDir, 'event.json');
+      writeFileSync(eventPath, JSON.stringify({ repository: { default_branch: 'main' } }));
+
+      try {
+        const config = parseConfig({
+          GITHUB_EVENT_NAME: 'push',
+          GITHUB_EVENT_PATH: eventPath,
+          GITHUB_REF: 'refs/heads/feature',
+          GITHUB_REPOSITORY: 'softprops/diffset',
+          GITHUB_SHA: 'b04376c43f66b8beed87abe6e28504781a4e461d',
+          INPUT_BASE: 'develop',
+          INPUT_TOKEN: 'aeiou',
+        });
+
+        assert.strictEqual(config.base, 'develop');
+        assert.strictEqual(config.defaultBranch, 'main');
+        assert.strictEqual(intoParams(config).base, 'develop');
+      } finally {
+        rmSync(eventDir, { force: true, recursive: true });
+      }
+    });
     it('parses pull request number from the GitHub event payload', () => {
       const eventDir = mkdtempSync(join(tmpdir(), 'diffset-'));
       const eventPath = join(eventDir, 'event.json');
       writeFileSync(
         eventPath,
         JSON.stringify({
+          repository: { default_branch: 'trunk' },
           pull_request: {
             base: {
               ref: 'main',
@@ -154,6 +218,7 @@ describe('util', () => {
               ref: 'feature',
               repo: { full_name: 'contributor/diffset' },
             },
+            changed_files: 2,
             number: 123,
           },
         }),
@@ -175,10 +240,12 @@ describe('util', () => {
             githubRepository: 'softprops/diffset',
             githubToken: 'aeiou',
             base: undefined,
+            defaultBranch: 'trunk',
             fileFilters: {
               foo_files: '*.foo',
             },
             pullBase: 'main',
+            pullChangedFiles: 2,
             pullHead: 'contributor:feature',
             pullNumber: 123,
             sha: 'b04376c43f66b8beed87abe6e28504781a4e461d',

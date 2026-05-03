@@ -6,6 +6,7 @@ export type Params = {
   head: string;
   includeRemoved?: boolean;
   owner: string;
+  pullChangedFiles?: number;
   pullNumber?: number;
   repo: string;
   ref: string;
@@ -59,34 +60,47 @@ export class GitHubDiff implements Diff {
   async diff(params: Params): Promise<Array<string>> {
     if (params.pullNumber != undefined) {
       try {
-        return await this.compare(params);
-      } catch {
-        const files = await this.github.paginate(this.github.pulls.listFiles, {
-          owner: params.owner,
-          repo: params.repo,
-          pull_number: params.pullNumber,
-        });
+        const files = await this.compareFiles(params);
+        if (params.pullChangedFiles != undefined && files.length < params.pullChangedFiles) {
+          return filenames(await this.pullFiles(params, params.pullNumber), params.includeRemoved);
+        }
         return filenames(files, params.includeRemoved);
+      } catch {
+        return filenames(await this.pullFiles(params, params.pullNumber), params.includeRemoved);
       }
     }
 
-    return this.compare(params);
+    return filenames(await this.compareFiles(params), params.includeRemoved);
   }
 
-  private async compare(params: Params): Promise<Array<string>> {
-    const { includeRemoved, pullNumber: _pullNumber, ...compareParams } = params;
+  private async pullFiles(params: Params, pullNumber: number): Promise<Array<ChangedFile>> {
+    const files = await this.github.paginate(this.github.pulls.listFiles, {
+      owner: params.owner,
+      repo: params.repo,
+      pull_number: pullNumber,
+    });
+    return files as Array<ChangedFile>;
+  }
 
-    // if this is a merge to master push
+  private async compareFiles(params: Params): Promise<Array<ChangedFile>> {
+    const {
+      includeRemoved: _includeRemoved,
+      pullChangedFiles: _pullChangedFiles,
+      pullNumber: _pullNumber,
+      ...compareParams
+    } = params;
+
+    // if this is a merge to the base branch
     // base and head will both be the same
     if (compareParams.base === compareParams.head) {
       const commit = await this.github.repos.getCommit(compareParams);
-      return filenames(commit.data.files, includeRemoved);
+      return commit.data.files || [];
     } else {
       const response = await this.github.repos.compareCommits({
         ...compareParams,
         ref: undefined,
       });
-      return filenames(response.data.files, includeRemoved);
+      return response.data.files || [];
     }
   }
 }

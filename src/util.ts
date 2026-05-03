@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 
 import { Params } from './diff.js';
 export interface Config {
+  defaultBranch?: string;
   githubToken: string;
   githubRef: string;
   githubRepository: string;
@@ -9,6 +10,7 @@ export interface Config {
   fileFilters: Record<string, string>;
   includeRemoved?: boolean;
   pullBase?: string;
+  pullChangedFiles?: number;
   pullHead?: string;
   pullNumber?: number;
   sha: string;
@@ -21,6 +23,9 @@ const FileFilter = /^INPUT_(\w+)_FILES$/;
 
 type GitHubEventPayload = {
   number?: number;
+  repository?: {
+    default_branch?: string;
+  };
   pull_request?: {
     base?: {
       ref?: string;
@@ -35,6 +40,7 @@ type GitHubEventPayload = {
         full_name?: string;
       };
     };
+    changed_files?: number;
     number?: number;
   };
 };
@@ -51,7 +57,7 @@ const cleanRef = (ref: string): string => {
 export const intoParams = (config: Config): Params => {
   const [owner, repo] = config.githubRepository.split('/', 2);
   const head = config.pullHead || cleanRef(config.githubRef);
-  const base = config.base || config.pullBase || 'master';
+  const base = config.base || config.pullBase || config.defaultBranch || 'master';
   const ref = config.sha;
   const params: Params = {
     base,
@@ -65,21 +71,34 @@ export const intoParams = (config: Config): Params => {
   }
   if (config.pullNumber != undefined && config.base == undefined) {
     params.pullNumber = config.pullNumber;
+    if (config.pullChangedFiles != undefined) {
+      params.pullChangedFiles = config.pullChangedFiles;
+    }
   }
   return params;
 };
 
-const pullRequestFromEvent = (env: Env): GitHubEventPayload['pull_request'] | undefined => {
-  if (!env.GITHUB_EVENT_NAME?.startsWith('pull_request') || env.GITHUB_EVENT_PATH == undefined) {
+const payloadFromEvent = (env: Env): GitHubEventPayload | undefined => {
+  if (env.GITHUB_EVENT_PATH == undefined) {
     return undefined;
   }
 
   try {
-    const event = JSON.parse(readFileSync(env.GITHUB_EVENT_PATH, 'utf8')) as GitHubEventPayload;
-    return event.pull_request ?? (event.number != undefined ? { number: event.number } : undefined);
+    return JSON.parse(readFileSync(env.GITHUB_EVENT_PATH, 'utf8')) as GitHubEventPayload;
   } catch {
     return undefined;
   }
+};
+
+const pullRequestFromEvent = (
+  env: Env,
+  event: GitHubEventPayload | undefined,
+): GitHubEventPayload['pull_request'] | undefined => {
+  if (!env.GITHUB_EVENT_NAME?.startsWith('pull_request')) {
+    return undefined;
+  }
+
+  return event?.pull_request ?? (event?.number != undefined ? { number: event.number } : undefined);
 };
 
 const pullHeadRef = (pullRequest: GitHubEventPayload['pull_request']): string | undefined => {
@@ -92,9 +111,12 @@ const pullHeadRef = (pullRequest: GitHubEventPayload['pull_request']): string | 
 export const parseConfig = (env: Env): Config => {
   const inputBase = env.INPUT_BASE?.trim();
   const base = inputBase ? inputBase : undefined;
-  const pullRequest = pullRequestFromEvent(env);
+  const event = payloadFromEvent(env);
+  const defaultBranch = event?.repository?.default_branch;
+  const pullRequest = pullRequestFromEvent(env, event);
   const pullNumber = base == undefined ? pullRequest?.number : undefined;
   const pullBase = base == undefined ? pullRequest?.base?.ref : undefined;
+  const pullChangedFiles = base == undefined ? pullRequest?.changed_files : undefined;
   const pullHead = pullHeadRef(pullRequest);
   const includeRemoved = env.INPUT_INCLUDE_REMOVED?.trim().toLowerCase() === 'true';
 
@@ -103,6 +125,7 @@ export const parseConfig = (env: Env): Config => {
     githubRef: env.GITHUB_HEAD_REF || env.GITHUB_REF || '',
     githubRepository: env.GITHUB_REPOSITORY || '',
     base,
+    ...(defaultBranch != undefined ? { defaultBranch } : {}),
     fileFilters: Array.from(Object.entries(env)).reduce((filters, [key, value]) => {
       if (value != undefined && FileFilter.test(key)) {
         filters[key.toLowerCase().replace('input_', '')] = value;
@@ -111,6 +134,7 @@ export const parseConfig = (env: Env): Config => {
     }, {}),
     ...(includeRemoved ? { includeRemoved } : {}),
     ...(pullBase != undefined ? { pullBase } : {}),
+    ...(pullChangedFiles != undefined ? { pullChangedFiles } : {}),
     ...(pullHead != undefined ? { pullHead } : {}),
     ...(pullNumber != undefined ? { pullNumber } : {}),
     sha: env.GITHUB_SHA || '',
