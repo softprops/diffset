@@ -2,6 +2,10 @@ import { GitHubDiff, Params, sets } from '../src/diff';
 
 import { assert, describe, it } from 'vitest';
 
+type TestFile = { filename?: string; status?: string };
+type CommitResponse = { data: { files?: Array<TestFile> } };
+type PaginateMap = (response: CommitResponse) => Array<TestFile>;
+
 const params: Params = {
   base: 'master',
   head: 'feature',
@@ -11,38 +15,49 @@ const params: Params = {
 };
 
 const fakeGithub = ({
+  commitPages,
   commitFiles = [],
   compareError,
   compareFiles = [],
   pullFiles = [],
 }: {
-  commitFiles?: Array<{ filename?: string; status?: string }>;
+  commitPages?: Array<Array<TestFile>>;
+  commitFiles?: Array<TestFile>;
   compareError?: Error;
-  compareFiles?: Array<{ filename?: string; status?: string }>;
-  pullFiles?: Array<{ filename?: string; status?: string }>;
+  compareFiles?: Array<TestFile>;
+  pullFiles?: Array<TestFile>;
 }) => {
   const calls: Record<string, unknown> = {};
+  const getCommit = async (request: unknown) => {
+    calls.getCommit = request;
+    return { data: { files: commitFiles } };
+  };
+  const compareCommits = async (request: unknown) => {
+    calls.compareCommits = request;
+    if (compareError != undefined) {
+      throw compareError;
+    }
+    return { data: { files: compareFiles } };
+  };
   const listFiles = () => undefined;
   const github = {
     repos: {
-      getCommit: async (request: unknown) => {
-        calls.getCommit = request;
-        return { data: { files: commitFiles } };
-      },
-      compareCommits: async (request: unknown) => {
-        calls.compareCommits = request;
-        if (compareError != undefined) {
-          throw compareError;
-        }
-        return { data: { files: compareFiles } };
-      },
+      getCommit,
+      compareCommits,
     },
     pulls: {
       listFiles,
     },
-    paginate: async (endpoint: unknown, request: unknown) => {
+    paginate: async (endpoint: unknown, request: unknown, map?: PaginateMap) => {
       calls.paginateEndpoint = endpoint;
       calls.paginate = request;
+      if (endpoint === getCommit) {
+        const pages = commitPages || [commitFiles];
+        if (map != undefined) {
+          return pages.flatMap((files) => map({ data: { files } }));
+        }
+        return pages.flat();
+      }
       return pullFiles;
     },
   };
@@ -85,20 +100,29 @@ describe('diff', () => {
       assert.deepStrictEqual(response, ['added.txt', 'removed.txt']);
     });
 
-    it('generates diff based on the commit api for same-ref pushes', async () => {
+    it('generates diff based on the paginated commit api for same-ref pushes', async () => {
       const { calls, github } = fakeGithub({
-        commitFiles: [
-          { status: 'added', filename: 'added.txt' },
-          { status: 'removed', filename: 'removed.txt' },
-          { status: 'modified' },
+        commitPages: [
+          [
+            { status: 'added', filename: 'added.txt' },
+            { status: 'removed', filename: 'removed.txt' },
+          ],
+          [{ status: 'modified', filename: 'changed.txt' }, { status: 'modified' }],
         ],
       });
       const sameRefParams = { ...params, head: 'master' };
 
       const response = await new GitHubDiff(github as never).diff(sameRefParams);
 
-      assert.deepStrictEqual(response, ['added.txt']);
-      assert.deepStrictEqual(calls.getCommit, sameRefParams);
+      assert.deepStrictEqual(response, ['added.txt', 'changed.txt']);
+      assert.strictEqual(calls.getCommit, undefined);
+      assert.strictEqual(calls.paginateEndpoint, github.repos.getCommit);
+      assert.deepStrictEqual(calls.paginate, {
+        owner: 'owner',
+        repo: 'repo',
+        ref: 'abc123',
+        per_page: 100,
+      });
     });
 
     it('keeps pull request diffs on the compare api when it succeeds', async () => {

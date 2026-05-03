@@ -41,6 +41,23 @@ jobs:
       - name: Format
         run: npm run fmtcheck
 
+      - name: Actionlint
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          version="1.7.12"
+          archive="actionlint_${version}_linux_amd64.tar.gz"
+          expected_sha="8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8"
+          tmpdir="$(mktemp -d)"
+
+          trap 'rm -rf "${tmpdir}"' EXIT
+          curl -fsSL "https://github.com/rhysd/actionlint/releases/download/v${version}/${archive}" \
+            -o "${tmpdir}/${archive}"
+          printf '%s  %s\n' "${expected_sha}" "${tmpdir}/${archive}" | sha256sum -c -
+          tar -xzf "${tmpdir}/${archive}" -C "${tmpdir}" actionlint
+          "${tmpdir}/actionlint" -color=false
+
       - name: Check generated files
         run: |
           git diff --exit-code --stat -- . ':!node_modules' \
@@ -66,22 +83,33 @@ jobs:
       - name: Diffset
         id: diffset
         uses: ./ # Uses an action in the root directory
-        with:
-          md_files: "*.md"
+        env:
+          INPUT_MD_FILES: "*.md"
 
       - name: Print Diffset
         env:
           DIFFSET_FILES: ${{ steps.diffset.outputs.files }}
-        run: ls -al ${DIFFSET_FILES}
+        shell: bash
+        run: |
+          read -r -a diffset_files <<< "${DIFFSET_FILES}"
+          ls -al "${diffset_files[@]}"
 
       - name: Print MD Files
-        if: steps.diffset.outputs.md_files
         env:
-          MD_FILES: ${{ steps.diffset.outputs.md_files }}
-        run: echo "Files changed were ${MD_FILES}"
+          DIFFSET_OUTPUTS: ${{ toJSON(steps.diffset.outputs) }}
+        shell: bash
+        run: |
+          md_files="$(jq -r '.md_files // empty' <<< "${DIFFSET_OUTPUTS}")"
+          if [ -n "${md_files}" ]; then
+            echo "Files changed were ${md_files}"
+          fi
 
       - name: Print Rust Files
-        if: steps.diffset.outputs.rust_files
         env:
-          RUST_FILES: ${{ steps.diffset.outputs.rust_files }}
-        run: echo "Files changed were ${RUST_FILES}"
+          DIFFSET_OUTPUTS: ${{ toJSON(steps.diffset.outputs) }}
+        shell: bash
+        run: |
+          rust_files="$(jq -r '.rust_files // empty' <<< "${DIFFSET_OUTPUTS}")"
+          if [ -n "${rust_files}" ]; then
+            echo "Files changed were ${rust_files}"
+          fi
