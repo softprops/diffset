@@ -1,3 +1,7 @@
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { intoParams, parseConfig } from '../src/util';
 
 import { assert, describe, it } from 'vitest';
@@ -16,6 +20,46 @@ describe('util', () => {
         {
           base: 'master',
           head: 'branch',
+          owner: 'owner',
+          repo: 'repo',
+          ref: 'b04376c43f66b8beed87abe6e28504781a4e461d',
+        },
+      );
+    });
+    it('includes pull request number when no custom base is configured', () => {
+      assert.deepStrictEqual(
+        intoParams({
+          githubToken: 'aeiou',
+          githubRef: 'refs/pull/123/merge',
+          githubRepository: 'owner/repo',
+          fileFilters: {},
+          pullNumber: 123,
+          sha: 'b04376c43f66b8beed87abe6e28504781a4e461d',
+        }),
+        {
+          base: 'master',
+          head: 'refs/pull/123/merge',
+          owner: 'owner',
+          pullNumber: 123,
+          repo: 'repo',
+          ref: 'b04376c43f66b8beed87abe6e28504781a4e461d',
+        },
+      );
+    });
+    it('omits pull request number when a custom base is configured', () => {
+      assert.deepStrictEqual(
+        intoParams({
+          githubToken: 'aeiou',
+          githubRef: 'refs/pull/123/merge',
+          githubRepository: 'owner/repo',
+          base: 'develop',
+          fileFilters: {},
+          pullNumber: 123,
+          sha: 'b04376c43f66b8beed87abe6e28504781a4e461d',
+        }),
+        {
+          base: 'develop',
+          head: 'refs/pull/123/merge',
           owner: 'owner',
           repo: 'repo',
           ref: 'b04376c43f66b8beed87abe6e28504781a4e461d',
@@ -68,6 +112,67 @@ describe('util', () => {
           sha: 'b04376c43f66b8beed87abe6e28504781a4e461d',
         },
       );
+    });
+    it('parses pull request number from the GitHub event payload', () => {
+      const eventDir = mkdtempSync(join(tmpdir(), 'diffset-'));
+      const eventPath = join(eventDir, 'event.json');
+      writeFileSync(eventPath, JSON.stringify({ pull_request: { number: 123 } }));
+
+      try {
+        assert.deepStrictEqual(
+          parseConfig({
+            GITHUB_EVENT_NAME: 'pull_request',
+            GITHUB_EVENT_PATH: eventPath,
+            GITHUB_REF: 'refs/pull/123/merge',
+            GITHUB_REPOSITORY: 'softprops/diffset',
+            GITHUB_SHA: 'b04376c43f66b8beed87abe6e28504781a4e461d',
+            INPUT_TOKEN: 'aeiou',
+            INPUT_FOO_FILES: '*.foo',
+          }),
+          {
+            githubRef: 'refs/pull/123/merge',
+            githubRepository: 'softprops/diffset',
+            githubToken: 'aeiou',
+            base: undefined,
+            fileFilters: {
+              foo_files: '*.foo',
+            },
+            pullNumber: 123,
+            sha: 'b04376c43f66b8beed87abe6e28504781a4e461d',
+          },
+        );
+      } finally {
+        rmSync(eventDir, { force: true, recursive: true });
+      }
+    });
+    it('ignores pull request number when custom base is configured', () => {
+      const eventDir = mkdtempSync(join(tmpdir(), 'diffset-'));
+      const eventPath = join(eventDir, 'event.json');
+      writeFileSync(eventPath, JSON.stringify({ pull_request: { number: 123 } }));
+
+      try {
+        assert.deepStrictEqual(
+          parseConfig({
+            GITHUB_EVENT_NAME: 'pull_request',
+            GITHUB_EVENT_PATH: eventPath,
+            GITHUB_REF: 'refs/pull/123/merge',
+            GITHUB_REPOSITORY: 'softprops/diffset',
+            GITHUB_SHA: 'b04376c43f66b8beed87abe6e28504781a4e461d',
+            INPUT_TOKEN: 'aeiou',
+            INPUT_BASE: 'develop',
+          }),
+          {
+            githubRef: 'refs/pull/123/merge',
+            githubRepository: 'softprops/diffset',
+            githubToken: 'aeiou',
+            base: 'develop',
+            fileFilters: {},
+            sha: 'b04376c43f66b8beed87abe6e28504781a4e461d',
+          },
+        );
+      } finally {
+        rmSync(eventDir, { force: true, recursive: true });
+      }
     });
   });
 });

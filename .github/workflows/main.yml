@@ -24,6 +24,9 @@ jobs:
       - name: Install
         run: npm ci
 
+      - name: Typecheck
+        run: npm run typecheck
+
       - name: Build
         run: npm run build
 
@@ -32,13 +35,13 @@ jobs:
 
       - name: Format
         run: npm run fmtcheck
-      # - name: "check for uncommitted changes"
-      #   # Ensure no changes, but ignore node_modules dir since dev/fresh ci deps installed.
-      #   run: |
-      #     git diff --exit-code --stat -- . ':!node_modules' \
-      #     || (echo "##[error] found changed files after build. please 'npm run build && npm run fmt'" \
-      #             "and check in all changes" \
-      #         && exit 1)
+
+      - name: Check generated files
+        run: |
+          git diff --exit-code --stat -- . ':!node_modules' \
+          || (echo "##[error] found changed files after build. please 'npm run build && npm run fmt'" \
+                  "and check in all changes" \
+              && exit 1)
   integration:
     needs: build
     runs-on: ubuntu-latest
