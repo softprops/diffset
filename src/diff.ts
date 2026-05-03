@@ -3,6 +3,7 @@ import { Minimatch } from 'minimatch';
 
 export type Params = {
   base: string;
+  changedFiles?: Array<ChangedFile>;
   head: string;
   includeRemoved?: boolean;
   owner: string;
@@ -12,7 +13,7 @@ export type Params = {
   ref: string;
 };
 
-type ChangedFile = {
+export type ChangedFile = {
   filename?: string;
   status?: string;
 };
@@ -58,6 +59,10 @@ export class GitHubDiff implements Diff {
     this.github = github;
   }
   async diff(params: Params): Promise<Array<string>> {
+    if (params.changedFiles != undefined) {
+      return filenames(params.changedFiles, params.includeRemoved);
+    }
+
     if (params.pullNumber != undefined) {
       try {
         const files = await this.compareFiles(params);
@@ -78,12 +83,14 @@ export class GitHubDiff implements Diff {
       owner: params.owner,
       repo: params.repo,
       pull_number: pullNumber,
+      per_page: 100,
     });
     return files as Array<ChangedFile>;
   }
 
   private async compareFiles(params: Params): Promise<Array<ChangedFile>> {
     const {
+      changedFiles: _changedFiles,
       includeRemoved: _includeRemoved,
       pullChangedFiles: _pullChangedFiles,
       pullNumber: _pullNumber,

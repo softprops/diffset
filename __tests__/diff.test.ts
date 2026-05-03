@@ -100,6 +100,36 @@ describe('diff', () => {
       assert.deepStrictEqual(response, ['added.txt', 'removed.txt']);
     });
 
+    it('uses provided changed files without calling the GitHub APIs', async () => {
+      const { calls, github } = fakeGithub({});
+
+      const response = await new GitHubDiff(github as never).diff({
+        ...params,
+        changedFiles: [
+          { status: 'added', filename: 'from-event.txt' },
+          { status: 'removed', filename: 'deleted.txt' },
+        ],
+      });
+
+      assert.deepStrictEqual(response, ['from-event.txt']);
+      assert.deepStrictEqual(calls, {});
+    });
+
+    it('includes removed provided changed files when requested', async () => {
+      const { github } = fakeGithub({});
+
+      const response = await new GitHubDiff(github as never).diff({
+        ...params,
+        includeRemoved: true,
+        changedFiles: [
+          { status: 'added', filename: 'from-event.txt' },
+          { status: 'removed', filename: 'deleted.txt' },
+        ],
+      });
+
+      assert.deepStrictEqual(response, ['from-event.txt', 'deleted.txt']);
+    });
+
     it('generates diff based on the paginated commit api for same-ref pushes', async () => {
       const { calls, github } = fakeGithub({
         commitPages: [
@@ -177,6 +207,7 @@ describe('diff', () => {
         owner: 'owner',
         repo: 'repo',
         pull_number: 123,
+        per_page: 100,
       });
     });
 
@@ -242,6 +273,7 @@ describe('diff', () => {
         owner: 'owner',
         repo: 'repo',
         pull_number: 123,
+        per_page: 100,
       });
     });
   });
