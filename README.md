@@ -43,7 +43,9 @@ jobs:
 +       id: diffset
 +       uses: softprops/diffset@v3
       - name: Print Diffset
-        run: ls -al ${{ steps.diffset.outputs.files }}
+        env:
+          DIFFSET_FILES: ${{ steps.diffset.outputs.files }}
+        run: ls -al ${DIFFSET_FILES}
 ```
 
 ### 💅 Customizing
@@ -74,14 +76,16 @@ jobs:
 +           src/or-these/**/*.ts
       - name: Print Special Files
         if: steps.diffset.outputs.special_files
-        run: ls -al ${{ steps.diffset.outputs.special_files }}
+        env:
+          SPECIAL_FILES: ${{ steps.diffset.outputs.special_files }}
+        run: ls -al ${SPECIAL_FILES}
       - name: Other work
         run: echo "..."
 ```
 
 #### Custom base branch
 
-Most GitHub repositories use a default "master" branch. Diffset uses this as a basis of comparison by default. If you use a different base branch you can use the `steps.with` key to provide a custom `base`
+Diffset uses the repository default branch from the workflow event as a basis of comparison by default, falling back to "master" when the event does not include one. If you want a different base branch you can use the `steps.with` key to provide a custom `base`
 
 ```diff
 name: Main
@@ -100,7 +104,9 @@ jobs:
 +       with:
 +         base: develop
       - name: Other work
-        run: ls -al ${{ steps.diffset.outputs.files }}
+        env:
+          DIFFSET_FILES: ${{ steps.diffset.outputs.files }}
+        run: ls -al ${DIFFSET_FILES}
 ```
 
 #### inputs
@@ -113,10 +119,12 @@ Specifically this action accepts any inputs with a suffix of `_files`
 | Name              | Type    | Description                                                       |
 | ----------------- | ------- | ----------------------------------------------------------------- |
 | `*_files`         | string  | A file pattern to filter changed files                            |
-| `base`            | string  | Base branch for comparison. Defaults to "master"                  |
+| `base`            | string  | Base branch for comparison. Defaults to the repository default branch |
 | `include_removed` | boolean | Include removed files in diff outputs. Defaults to `false`        |
 
 Removed files are excluded from outputs by default because deleted paths usually cannot be passed to tools after checkout.
+
+For least-privilege workflows, `permissions: contents: read` is enough for normal compare diffs. Large pull requests may also need `pull-requests: read` when diffset falls back to the Pulls API to avoid truncated file lists.
 
 #### outputs
 
@@ -146,10 +154,10 @@ jobs:
       - name: Diffset
         id: diffset
         uses: softprops/diffset@v3
-       with:
-         special_files: |
-           src/special/**/*.ts
-           src/or-these/**/*.ts
++       with:
++         special_files: |
++           src/special/**/*.ts
++           src/or-these/**/*.ts
       - name: Checkout
 +       if: steps.diffset.outputs.special_files
         uses: actions/checkout@v6

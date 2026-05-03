@@ -10,16 +10,21 @@ on:
     branches:
       - master
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v4
         with:
           node-version-file: ".tool-versions"
-          cache: "npm"
+          package-manager-cache: false
 
       - name: Install
         run: npm ci
@@ -44,14 +49,19 @@ jobs:
               && exit 1)
   integration:
     needs: build
+    permissions:
+      contents: read
+      pull-requests: read
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v5
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v4
         with:
           node-version-file: ".tool-versions"
-          cache: "npm"
+          package-manager-cache: false
 
       - name: Diffset
         id: diffset
@@ -60,12 +70,18 @@ jobs:
           md_files: "*.md"
 
       - name: Print Diffset
-        run: ls -al ${{ steps.diffset.outputs.files }}
+        env:
+          DIFFSET_FILES: ${{ steps.diffset.outputs.files }}
+        run: ls -al ${DIFFSET_FILES}
 
       - name: Print MD Files
         if: steps.diffset.outputs.md_files
-        run: echo "Files changed were ${{ steps.diffset.outputs.md_files }}"
+        env:
+          MD_FILES: ${{ steps.diffset.outputs.md_files }}
+        run: echo "Files changed were ${MD_FILES}"
 
       - name: Print Rust Files
         if: steps.diffset.outputs.rust_files
-        run: echo "Files changed were ${{ steps.diffset.outputs.rust_files }}"
+        env:
+          RUST_FILES: ${{ steps.diffset.outputs.rust_files }}
+        run: echo "Files changed were ${RUST_FILES}"
