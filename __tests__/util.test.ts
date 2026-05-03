@@ -94,7 +94,7 @@ describe('util', () => {
         },
       );
     });
-    it('includes push event files when configured', () => {
+    it('includes pushed commit refs when configured', () => {
       assert.deepStrictEqual(
         intoParams({
           defaultBranch: 'main',
@@ -102,18 +102,12 @@ describe('util', () => {
           githubRef: 'refs/heads/main',
           githubRepository: 'owner/repo',
           fileFilters: {},
-          pushFiles: [
-            { filename: 'added.txt', status: 'added' },
-            { filename: 'removed.txt', status: 'removed' },
-          ],
+          pushCommitRefs: ['1111111', '2222222'],
           sha: 'b04376c43f66b8beed87abe6e28504781a4e461d',
         }),
         {
           base: 'main',
-          changedFiles: [
-            { filename: 'added.txt', status: 'added' },
-            { filename: 'removed.txt', status: 'removed' },
-          ],
+          commitRefs: ['1111111', '2222222'],
           head: 'main',
           owner: 'owner',
           repo: 'repo',
@@ -228,23 +222,15 @@ describe('util', () => {
         rmSync(eventDir, { force: true, recursive: true });
       }
     });
-    it('uses push event commit files for default branch pushes', () => {
+    it('uses pushed commit refs for default branch pushes', () => {
       const eventDir = mkdtempSync(join(tmpdir(), 'diffset-'));
       const eventPath = join(eventDir, 'event.json');
       writeFileSync(
         eventPath,
         JSON.stringify({
           commits: [
-            {
-              added: ['first.txt', 'temporary.txt'],
-              modified: ['changed.txt'],
-              removed: ['old.txt'],
-            },
-            {
-              added: ['second.txt'],
-              modified: ['first.txt'],
-              removed: ['temporary.txt'],
-            },
+            { id: '1111111111111111111111111111111111111111' },
+            { id: '2222222222222222222222222222222222222222' },
           ],
           repository: { default_branch: 'main' },
         }),
@@ -260,21 +246,15 @@ describe('util', () => {
           INPUT_TOKEN: 'aeiou',
         });
 
-        assert.deepStrictEqual(config.pushFiles, [
-          { filename: 'first.txt', status: 'modified' },
-          { filename: 'temporary.txt', status: 'removed' },
-          { filename: 'changed.txt', status: 'modified' },
-          { filename: 'old.txt', status: 'removed' },
-          { filename: 'second.txt', status: 'added' },
+        assert.deepStrictEqual(config.pushCommitRefs, [
+          '1111111111111111111111111111111111111111',
+          '2222222222222222222222222222222222222222',
         ]);
         assert.deepStrictEqual(intoParams(config), {
           base: 'main',
-          changedFiles: [
-            { filename: 'first.txt', status: 'modified' },
-            { filename: 'temporary.txt', status: 'removed' },
-            { filename: 'changed.txt', status: 'modified' },
-            { filename: 'old.txt', status: 'removed' },
-            { filename: 'second.txt', status: 'added' },
+          commitRefs: [
+            '1111111111111111111111111111111111111111',
+            '2222222222222222222222222222222222222222',
           ],
           head: 'main',
           owner: 'softprops',
@@ -285,13 +265,46 @@ describe('util', () => {
         rmSync(eventDir, { force: true, recursive: true });
       }
     });
-    it('ignores push event commit files when custom base is configured', () => {
+    it('uses push before and after when commit refs are unavailable', () => {
       const eventDir = mkdtempSync(join(tmpdir(), 'diffset-'));
       const eventPath = join(eventDir, 'event.json');
       writeFileSync(
         eventPath,
         JSON.stringify({
-          commits: [{ added: ['first.txt'] }],
+          before: '1111111111111111111111111111111111111111',
+          after: '2222222222222222222222222222222222222222',
+          repository: { default_branch: 'main' },
+        }),
+      );
+
+      try {
+        const config = parseConfig({
+          GITHUB_EVENT_NAME: 'push',
+          GITHUB_EVENT_PATH: eventPath,
+          GITHUB_REF: 'refs/heads/main',
+          GITHUB_REPOSITORY: 'softprops/diffset',
+          GITHUB_SHA: '2222222222222222222222222222222222222222',
+          INPUT_TOKEN: 'aeiou',
+        });
+
+        assert.deepStrictEqual(intoParams(config), {
+          base: '1111111111111111111111111111111111111111',
+          head: '2222222222222222222222222222222222222222',
+          owner: 'softprops',
+          repo: 'diffset',
+          ref: '2222222222222222222222222222222222222222',
+        });
+      } finally {
+        rmSync(eventDir, { force: true, recursive: true });
+      }
+    });
+    it('ignores pushed commit refs when custom base is configured', () => {
+      const eventDir = mkdtempSync(join(tmpdir(), 'diffset-'));
+      const eventPath = join(eventDir, 'event.json');
+      writeFileSync(
+        eventPath,
+        JSON.stringify({
+          commits: [{ id: '1111111111111111111111111111111111111111' }],
           repository: { default_branch: 'main' },
         }),
       );
@@ -307,19 +320,19 @@ describe('util', () => {
           INPUT_TOKEN: 'aeiou',
         });
 
-        assert.strictEqual(config.pushFiles, undefined);
+        assert.strictEqual(config.pushCommitRefs, undefined);
         assert.strictEqual(intoParams(config).base, 'develop');
       } finally {
         rmSync(eventDir, { force: true, recursive: true });
       }
     });
-    it('ignores push event commit files for non-default branch pushes', () => {
+    it('ignores pushed commit refs for non-default branch pushes', () => {
       const eventDir = mkdtempSync(join(tmpdir(), 'diffset-'));
       const eventPath = join(eventDir, 'event.json');
       writeFileSync(
         eventPath,
         JSON.stringify({
-          commits: [{ added: ['first.txt'] }],
+          commits: [{ id: '1111111111111111111111111111111111111111' }],
           repository: { default_branch: 'main' },
         }),
       );
@@ -334,7 +347,7 @@ describe('util', () => {
           INPUT_TOKEN: 'aeiou',
         });
 
-        assert.strictEqual(config.pushFiles, undefined);
+        assert.strictEqual(config.pushCommitRefs, undefined);
       } finally {
         rmSync(eventDir, { force: true, recursive: true });
       }
