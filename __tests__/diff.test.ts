@@ -3,8 +3,9 @@ import { GitHubDiff, Params, sets } from '../src/diff';
 import { assert, describe, it } from 'vitest';
 
 type TestFile = { filename?: string; previous_filename?: string; status?: string };
-type CommitResponse = { data: { files?: Array<TestFile> } };
-type PaginateMap = (response: CommitResponse) => Array<TestFile>;
+type TestCommit = { sha?: string };
+type PaginateResponse = { data: { commits?: Array<TestCommit>; files?: Array<TestFile> } };
+type PaginateMap = (response: PaginateResponse) => Array<TestCommit> | Array<TestFile>;
 
 const params: Params = {
   base: 'master',
@@ -19,6 +20,7 @@ const fakeGithub = ({
   commitPagesByRef = {},
   commitFiles = [],
   compareError,
+  compareCommitPages = [],
   compareFiles = [],
   pullFiles = [],
 }: {
@@ -26,6 +28,7 @@ const fakeGithub = ({
   commitPagesByRef?: Record<string, Array<Array<TestFile>>>;
   commitFiles?: Array<TestFile>;
   compareError?: Error;
+  compareCommitPages?: Array<Array<TestCommit>>;
   compareFiles?: Array<TestFile>;
   pullFiles?: Array<TestFile>;
 }) => {
@@ -65,6 +68,12 @@ const fakeGithub = ({
           return pages.flatMap((files) => map({ data: { files } }));
         }
         return pages.flat();
+      }
+      if (endpoint === compareCommits) {
+        if (map != undefined) {
+          return compareCommitPages.flatMap((commits) => map({ data: { commits } }));
+        }
+        return compareCommitPages.flat();
       }
       return pullFiles;
     },
@@ -280,23 +289,59 @@ describe('diff', () => {
       assert.deepStrictEqual(response, ['src/main.ts', 'src/old.ts']);
     });
 
-    it('does not infer truncation when pull request changed file count is unavailable', async () => {
+    it('falls back to pull request files when changed file count is unavailable and compare may be truncated', async () => {
       const compareFiles = Array.from({ length: 300 }, (_, index) => ({
         status: 'added',
         filename: `src/file-${index}.ts`,
       }));
-      const { calls, github } = fakeGithub({ compareFiles });
+      const { calls, github } = fakeGithub({
+        compareFiles,
+        pullFiles: [
+          { status: 'added', filename: 'src/main.ts' },
+          { status: 'removed', filename: 'src/old.ts' },
+          { status: 'modified', filename: 'src/other.ts' },
+        ],
+      });
 
       const response = await new GitHubDiff(github as never).diff({
         ...params,
         pullNumber: 123,
       });
 
-      assert.deepStrictEqual(
-        response,
-        compareFiles.map((file) => file.filename),
-      );
-      assert.strictEqual(calls.paginate, undefined);
+      assert.deepStrictEqual(response, ['src/main.ts', 'src/other.ts']);
+      assert.strictEqual(calls.paginateEndpoint, github.pulls.listFiles);
+      assert.deepStrictEqual(calls.paginate, {
+        owner: 'owner',
+        repo: 'repo',
+        pull_number: 123,
+        per_page: 100,
+      });
+    });
+
+    it('falls back to commit files when compare output may be truncated without a pull request', async () => {
+      const compareFiles = Array.from({ length: 300 }, (_, index) => ({
+        status: 'added',
+        filename: `src/file-${index}.ts`,
+      }));
+      const { calls, github } = fakeGithub({
+        compareFiles,
+        compareCommitPages: [[{ sha: 'first' }, { sha: 'second' }], [{ sha: 'third' }]],
+        commitPagesByRef: {
+          first: [[{ status: 'added', filename: 'src/first.ts' }]],
+          second: [[{ status: 'removed', filename: 'src/temporary.ts' }]],
+          third: [[{ status: 'modified', filename: 'src/third.ts' }]],
+        },
+      });
+
+      const response = await new GitHubDiff(github as never).diff(params);
+
+      assert.deepStrictEqual(response, ['src/first.ts', 'src/third.ts']);
+      assert.deepStrictEqual(calls.paginateCalls, [
+        { ...params, ref: undefined, per_page: 100 },
+        { owner: 'owner', repo: 'repo', ref: 'first', per_page: 100 },
+        { owner: 'owner', repo: 'repo', ref: 'second', per_page: 100 },
+        { owner: 'owner', repo: 'repo', ref: 'third', per_page: 100 },
+      ]);
     });
 
     it('falls back to pull request files when compare fails', async () => {
@@ -355,6 +400,34 @@ describe('diff', () => {
       ]);
       assert.deepStrictEqual(result, {
         ts_files: ['src/main.ts', 'src/util.ts'],
+      });
+    });
+    it('applies negated patterns as ordered excludes', () => {
+      const result = sets({ ts_files: '**/*.ts\n!**/*.test.ts' }, [
+        'src/main.ts',
+        'src/main.test.ts',
+        'README.md',
+      ]);
+      assert.deepStrictEqual(result, {
+        ts_files: ['src/main.ts'],
+      });
+    });
+    it('returns no matches for negation-only patterns', () => {
+      const result = sets({ ts_files: '!**/*.test.ts' }, [
+        'src/main.ts',
+        'src/main.test.ts',
+        'README.md',
+      ]);
+      assert.deepStrictEqual(result, {});
+    });
+    it('allows later patterns to re-include excluded files', () => {
+      const result = sets({ ts_files: '**/*.ts\n!**/*.test.ts\nsrc/main.test.ts' }, [
+        'src/main.ts',
+        'src/main.test.ts',
+        'README.md',
+      ]);
+      assert.deepStrictEqual(result, {
+        ts_files: ['src/main.ts', 'src/main.test.ts'],
       });
     });
   });

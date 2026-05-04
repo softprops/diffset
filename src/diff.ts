@@ -19,6 +19,12 @@ export type ChangedFile = {
   status?: string;
 };
 
+type ChangedCommit = {
+  sha?: string;
+};
+
+const CompareFilesLimit = 300;
+
 /** produce a collection of named diff sets based on patterns defined in sets */
 export const sets = (
   filters: Record<string, string>,
@@ -29,11 +35,26 @@ export const sets = (
       .split(/\r?\n/)
       .map((pattern) => pattern.trim())
       .filter((pattern) => pattern.length > 0)
-      .flatMap((pattern) => {
-        let matcher = new Minimatch(pattern);
-        return files.filter((file) => matcher.match(file));
-      });
-    let uniqueMatches = Array.from(new Set(matches));
+      .reduce((matches, pattern) => {
+        const negate = pattern.startsWith('!');
+        const expression = negate ? pattern.substring(1).trim() : pattern;
+        if (expression.length === 0) {
+          return matches;
+        }
+
+        let matcher = new Minimatch(expression);
+        files
+          .filter((file) => matcher.match(file))
+          .forEach((file) => {
+            if (negate) {
+              matches.delete(file);
+            } else {
+              matches.add(file);
+            }
+          });
+        return matches;
+      }, new Set<string>());
+    let uniqueMatches = Array.from(matches);
     if (uniqueMatches.length > 0) {
       filtered[key] = uniqueMatches;
     }
@@ -70,13 +91,28 @@ export class GitHubDiff implements Diff {
         if (params.pullChangedFiles != undefined && files.length < params.pullChangedFiles) {
           return filenames(await this.pullFiles(params, params.pullNumber), params.includeRemoved);
         }
+        if (params.pullChangedFiles == undefined && this.mayHaveTruncatedCompare(params, files)) {
+          return filenames(await this.pullFiles(params, params.pullNumber), params.includeRemoved);
+        }
         return filenames(files, params.includeRemoved);
       } catch {
         return filenames(await this.pullFiles(params, params.pullNumber), params.includeRemoved);
       }
     }
 
-    return filenames(await this.compareFiles(params), params.includeRemoved);
+    const files = await this.compareFiles(params);
+    if (this.mayHaveTruncatedCompare(params, files)) {
+      try {
+        return filenames(await this.compareCommitFiles(params, files), params.includeRemoved);
+      } catch {
+        return filenames(files, params.includeRemoved);
+      }
+    }
+    return filenames(files, params.includeRemoved);
+  }
+
+  private mayHaveTruncatedCompare(params: Params, files: Array<ChangedFile>): boolean {
+    return params.base !== params.head && files.length >= CompareFilesLimit;
   }
 
   private async commitFiles(
@@ -107,6 +143,31 @@ export class GitHubDiff implements Diff {
     return Array.from(files.values());
   }
 
+  private async compareCommitFiles(
+    params: Params,
+    fallbackFiles: Array<ChangedFile>,
+  ): Promise<Array<ChangedFile>> {
+    const commitRefs = await this.compareCommitRefs(params);
+    if (commitRefs.length === 0) {
+      return fallbackFiles;
+    }
+    return this.commitFiles(params, commitRefs);
+  }
+
+  private async compareCommitRefs(params: Params): Promise<Array<string>> {
+    const compareParams = this.compareParams(params);
+    const commits = (await this.github.paginate(
+      this.github.repos.compareCommits,
+      {
+        ...compareParams,
+        ref: undefined,
+        per_page: 100,
+      },
+      (response) => (response.data as { commits?: Array<ChangedCommit> }).commits || [],
+    )) as Array<ChangedCommit>;
+    return commits.map((commit) => commit.sha).filter(isDefined);
+  }
+
   private async pullFiles(params: Params, pullNumber: number): Promise<Array<ChangedFile>> {
     const files = await this.github.paginate(this.github.pulls.listFiles, {
       owner: params.owner,
@@ -118,13 +179,7 @@ export class GitHubDiff implements Diff {
   }
 
   private async compareFiles(params: Params): Promise<Array<ChangedFile>> {
-    const {
-      commitRefs: _commitRefs,
-      includeRemoved: _includeRemoved,
-      pullChangedFiles: _pullChangedFiles,
-      pullNumber: _pullNumber,
-      ...compareParams
-    } = params;
+    const compareParams = this.compareParams(params);
 
     // if this is a merge to the base branch
     // base and head will both be the same
@@ -147,5 +202,18 @@ export class GitHubDiff implements Diff {
       });
       return response.data.files || [];
     }
+  }
+
+  private compareParams(
+    params: Params,
+  ): Omit<Params, 'commitRefs' | 'includeRemoved' | 'pullChangedFiles' | 'pullNumber'> {
+    const {
+      commitRefs: _commitRefs,
+      includeRemoved: _includeRemoved,
+      pullChangedFiles: _pullChangedFiles,
+      pullNumber: _pullNumber,
+      ...compareParams
+    } = params;
+    return compareParams;
   }
 }

@@ -81,7 +81,7 @@ export const intoParams = (config: Config): Params => {
   if (config.pushCommitRefs != undefined) {
     params.commitRefs = config.pushCommitRefs;
   }
-  if (config.pullNumber != undefined && config.base == undefined) {
+  if (config.pullNumber != undefined) {
     params.pullNumber = config.pullNumber;
     if (config.pullChangedFiles != undefined) {
       params.pullChangedFiles = config.pullChangedFiles;
@@ -158,9 +158,11 @@ export const parseConfig = (env: Env): Config => {
   const defaultBranch = event?.repository?.default_branch;
   const githubRef = env.GITHUB_HEAD_REF || env.GITHUB_REF || '';
   const pullRequest = pullRequestFromEvent(env, event);
-  const pullNumber = base == undefined ? pullRequest?.number : undefined;
-  const pullBase = base == undefined ? pullRequest?.base?.ref : undefined;
-  const pullChangedFiles = base == undefined ? pullRequest?.changed_files : undefined;
+  const pullBase = pullRequest?.base?.ref;
+  const usePullFiles = base == undefined || base === pullBase;
+  const configPullBase = base == undefined ? pullBase : undefined;
+  const pullNumber = usePullFiles ? pullRequest?.number : undefined;
+  const pullChangedFiles = usePullFiles ? pullRequest?.changed_files : undefined;
   const pullHead = pullHeadRef(pullRequest);
   const { pushBase, pushCommitRefs, pushHead } = pushRangeFromEvent(
     env,
@@ -184,7 +186,7 @@ export const parseConfig = (env: Env): Config => {
       return filters;
     }, {}),
     ...(includeRemoved ? { includeRemoved } : {}),
-    ...(pullBase != undefined ? { pullBase } : {}),
+    ...(configPullBase != undefined ? { pullBase: configPullBase } : {}),
     ...(pullChangedFiles != undefined ? { pullChangedFiles } : {}),
     ...(pullHead != undefined ? { pullHead } : {}),
     ...(pullNumber != undefined ? { pullNumber } : {}),
