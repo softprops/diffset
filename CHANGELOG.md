@@ -1,3 +1,11 @@
+## 3.1.0
+
+- Add path-safe JSON outputs for changed files and dynamic file filters
+- Add optional removed-file output support
+- Improve diff accuracy for pull requests, default-branch pushes, large compares, same-ref commits, and renamed paths
+- Support ordered include/exclude semantics for dynamic file filter patterns
+- Replace the action bundle step with esbuild and refresh dependencies
+
 ## 3.0.3
 
 maintenance release with updated dependencies
