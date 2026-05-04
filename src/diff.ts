@@ -3,6 +3,7 @@ import { Minimatch } from 'minimatch';
 
 export type Params = {
   base: string;
+  commitRefs?: Array<string>;
   head: string;
   includeRemoved?: boolean;
   owner: string;
@@ -12,8 +13,9 @@ export type Params = {
   ref: string;
 };
 
-type ChangedFile = {
+export type ChangedFile = {
   filename?: string;
+  previous_filename?: string;
   status?: string;
 };
 
@@ -58,6 +60,10 @@ export class GitHubDiff implements Diff {
     this.github = github;
   }
   async diff(params: Params): Promise<Array<string>> {
+    if (params.commitRefs != undefined) {
+      return filenames(await this.commitFiles(params, params.commitRefs), params.includeRemoved);
+    }
+
     if (params.pullNumber != undefined) {
       try {
         const files = await this.compareFiles(params);
@@ -73,17 +79,47 @@ export class GitHubDiff implements Diff {
     return filenames(await this.compareFiles(params), params.includeRemoved);
   }
 
+  private async commitFiles(
+    params: Params,
+    commitRefs: Array<string>,
+  ): Promise<Array<ChangedFile>> {
+    const files = new Map<string, ChangedFile>();
+    for (const ref of commitRefs) {
+      const commitFiles = (await this.github.paginate(
+        this.github.repos.getCommit,
+        {
+          owner: params.owner,
+          repo: params.repo,
+          ref,
+          per_page: 100,
+        },
+        (response) => (response.data as { files?: Array<ChangedFile> }).files || [],
+      )) as Array<ChangedFile>;
+      commitFiles.forEach((file) => {
+        if (file.previous_filename != undefined) {
+          files.delete(file.previous_filename);
+        }
+        if (file.filename != undefined) {
+          files.set(file.filename, file);
+        }
+      });
+    }
+    return Array.from(files.values());
+  }
+
   private async pullFiles(params: Params, pullNumber: number): Promise<Array<ChangedFile>> {
     const files = await this.github.paginate(this.github.pulls.listFiles, {
       owner: params.owner,
       repo: params.repo,
       pull_number: pullNumber,
+      per_page: 100,
     });
     return files as Array<ChangedFile>;
   }
 
   private async compareFiles(params: Params): Promise<Array<ChangedFile>> {
     const {
+      commitRefs: _commitRefs,
       includeRemoved: _includeRemoved,
       pullChangedFiles: _pullChangedFiles,
       pullNumber: _pullNumber,

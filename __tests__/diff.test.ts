@@ -2,7 +2,7 @@ import { GitHubDiff, Params, sets } from '../src/diff';
 
 import { assert, describe, it } from 'vitest';
 
-type TestFile = { filename?: string; status?: string };
+type TestFile = { filename?: string; previous_filename?: string; status?: string };
 type CommitResponse = { data: { files?: Array<TestFile> } };
 type PaginateMap = (response: CommitResponse) => Array<TestFile>;
 
@@ -16,12 +16,14 @@ const params: Params = {
 
 const fakeGithub = ({
   commitPages,
+  commitPagesByRef = {},
   commitFiles = [],
   compareError,
   compareFiles = [],
   pullFiles = [],
 }: {
   commitPages?: Array<Array<TestFile>>;
+  commitPagesByRef?: Record<string, Array<Array<TestFile>>>;
   commitFiles?: Array<TestFile>;
   compareError?: Error;
   compareFiles?: Array<TestFile>;
@@ -51,8 +53,14 @@ const fakeGithub = ({
     paginate: async (endpoint: unknown, request: unknown, map?: PaginateMap) => {
       calls.paginateEndpoint = endpoint;
       calls.paginate = request;
+      calls.paginateCalls = [
+        ...((calls.paginateCalls as Array<unknown> | undefined) || []),
+        request,
+      ];
       if (endpoint === getCommit) {
-        const pages = commitPages || [commitFiles];
+        const ref = (request as { ref?: string }).ref;
+        const pages = (ref != undefined ? commitPagesByRef[ref] : undefined) ||
+          commitPages || [commitFiles];
         if (map != undefined) {
           return pages.flatMap((files) => map({ data: { files } }));
         }
@@ -98,6 +106,78 @@ describe('diff', () => {
       });
 
       assert.deepStrictEqual(response, ['added.txt', 'removed.txt']);
+    });
+
+    it('generates diff based on pushed commit refs', async () => {
+      const { calls, github } = fakeGithub({
+        commitPagesByRef: {
+          first: [
+            [
+              { status: 'added', filename: 'first.txt' },
+              { status: 'added', filename: 'temporary.txt' },
+            ],
+          ],
+          second: [
+            [
+              { status: 'modified', filename: 'first.txt' },
+              { status: 'removed', filename: 'temporary.txt' },
+              { status: 'added', filename: 'second.txt' },
+            ],
+          ],
+        },
+      });
+
+      const response = await new GitHubDiff(github as never).diff({
+        ...params,
+        commitRefs: ['first', 'second'],
+      });
+
+      assert.deepStrictEqual(response, ['first.txt', 'second.txt']);
+      assert.deepStrictEqual(calls.paginateCalls, [
+        { owner: 'owner', repo: 'repo', ref: 'first', per_page: 100 },
+        { owner: 'owner', repo: 'repo', ref: 'second', per_page: 100 },
+      ]);
+    });
+
+    it('removes superseded paths when pushed commits rename files', async () => {
+      const { github } = fakeGithub({
+        commitPagesByRef: {
+          first: [[{ status: 'modified', filename: 'docs/old.md' }]],
+          second: [
+            [
+              {
+                status: 'renamed',
+                filename: 'docs/new.md',
+                previous_filename: 'docs/old.md',
+              },
+            ],
+          ],
+        },
+      });
+
+      const response = await new GitHubDiff(github as never).diff({
+        ...params,
+        commitRefs: ['first', 'second'],
+      });
+
+      assert.deepStrictEqual(response, ['docs/new.md']);
+    });
+
+    it('includes removed files from pushed commit refs when requested', async () => {
+      const { github } = fakeGithub({
+        commitPagesByRef: {
+          first: [[{ status: 'added', filename: 'from-event.txt' }]],
+          second: [[{ status: 'removed', filename: 'deleted.txt' }]],
+        },
+      });
+
+      const response = await new GitHubDiff(github as never).diff({
+        ...params,
+        includeRemoved: true,
+        commitRefs: ['first', 'second'],
+      });
+
+      assert.deepStrictEqual(response, ['from-event.txt', 'deleted.txt']);
     });
 
     it('generates diff based on the paginated commit api for same-ref pushes', async () => {
@@ -177,6 +257,7 @@ describe('diff', () => {
         owner: 'owner',
         repo: 'repo',
         pull_number: 123,
+        per_page: 100,
       });
     });
 
@@ -242,6 +323,7 @@ describe('diff', () => {
         owner: 'owner',
         repo: 'repo',
         pull_number: 123,
+        per_page: 100,
       });
     });
   });

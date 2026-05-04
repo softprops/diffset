@@ -2,7 +2,14 @@ import { debug, setFailed, setOutput, warning } from '@actions/core';
 import { throttling } from '@octokit/plugin-throttling';
 import { Octokit } from '@octokit/rest';
 import { GitHubDiff, sets } from './diff.js';
+import { listOutputs } from './output.js';
 import { intoParams, parseConfig } from './util.js';
+
+const setListOutput = (name: string, files: Array<string>) => {
+  Array.from(Object.entries(listOutputs(name, files))).forEach(([key, value]) => {
+    setOutput(key, value);
+  });
+};
 
 async function run() {
   try {
@@ -28,11 +35,11 @@ async function run() {
       }),
     );
     const diffset = await differ.diff(intoParams(config));
-    setOutput('files', diffset.join(' '));
+    setListOutput('files', diffset);
     let filterSets = sets(config.fileFilters, diffset);
     Array.from(Object.entries(filterSets)).forEach(([key, matches]) => {
       debug(`files for ${key} ${matches}`);
-      setOutput(key, matches.join(' '));
+      setListOutput(key, matches);
     });
   } catch (error) {
     console.log(error);

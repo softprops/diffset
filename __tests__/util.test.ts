@@ -94,6 +94,27 @@ describe('util', () => {
         },
       );
     });
+    it('includes pushed commit refs when configured', () => {
+      assert.deepStrictEqual(
+        intoParams({
+          defaultBranch: 'main',
+          githubToken: 'aeiou',
+          githubRef: 'refs/heads/main',
+          githubRepository: 'owner/repo',
+          fileFilters: {},
+          pushCommitRefs: ['1111111', '2222222'],
+          sha: 'b04376c43f66b8beed87abe6e28504781a4e461d',
+        }),
+        {
+          base: 'main',
+          commitRefs: ['1111111', '2222222'],
+          head: 'main',
+          owner: 'owner',
+          repo: 'repo',
+          ref: 'b04376c43f66b8beed87abe6e28504781a4e461d',
+        },
+      );
+    });
   });
   describe('parseConfig', () => {
     it('parses configuration from env', () => {
@@ -197,6 +218,136 @@ describe('util', () => {
         assert.strictEqual(config.base, 'develop');
         assert.strictEqual(config.defaultBranch, 'main');
         assert.strictEqual(intoParams(config).base, 'develop');
+      } finally {
+        rmSync(eventDir, { force: true, recursive: true });
+      }
+    });
+    it('uses pushed commit refs for default branch pushes', () => {
+      const eventDir = mkdtempSync(join(tmpdir(), 'diffset-'));
+      const eventPath = join(eventDir, 'event.json');
+      writeFileSync(
+        eventPath,
+        JSON.stringify({
+          commits: [
+            { id: '1111111111111111111111111111111111111111' },
+            { id: '2222222222222222222222222222222222222222' },
+          ],
+          repository: { default_branch: 'main' },
+        }),
+      );
+
+      try {
+        const config = parseConfig({
+          GITHUB_EVENT_NAME: 'push',
+          GITHUB_EVENT_PATH: eventPath,
+          GITHUB_REF: 'refs/heads/main',
+          GITHUB_REPOSITORY: 'softprops/diffset',
+          GITHUB_SHA: 'b04376c43f66b8beed87abe6e28504781a4e461d',
+          INPUT_TOKEN: 'aeiou',
+        });
+
+        assert.deepStrictEqual(config.pushCommitRefs, [
+          '1111111111111111111111111111111111111111',
+          '2222222222222222222222222222222222222222',
+        ]);
+        assert.deepStrictEqual(intoParams(config), {
+          base: 'main',
+          commitRefs: [
+            '1111111111111111111111111111111111111111',
+            '2222222222222222222222222222222222222222',
+          ],
+          head: 'main',
+          owner: 'softprops',
+          repo: 'diffset',
+          ref: 'b04376c43f66b8beed87abe6e28504781a4e461d',
+        });
+      } finally {
+        rmSync(eventDir, { force: true, recursive: true });
+      }
+    });
+    it('uses push before and after when commit refs are unavailable', () => {
+      const eventDir = mkdtempSync(join(tmpdir(), 'diffset-'));
+      const eventPath = join(eventDir, 'event.json');
+      writeFileSync(
+        eventPath,
+        JSON.stringify({
+          before: '1111111111111111111111111111111111111111',
+          after: '2222222222222222222222222222222222222222',
+          repository: { default_branch: 'main' },
+        }),
+      );
+
+      try {
+        const config = parseConfig({
+          GITHUB_EVENT_NAME: 'push',
+          GITHUB_EVENT_PATH: eventPath,
+          GITHUB_REF: 'refs/heads/main',
+          GITHUB_REPOSITORY: 'softprops/diffset',
+          GITHUB_SHA: '2222222222222222222222222222222222222222',
+          INPUT_TOKEN: 'aeiou',
+        });
+
+        assert.deepStrictEqual(intoParams(config), {
+          base: '1111111111111111111111111111111111111111',
+          head: '2222222222222222222222222222222222222222',
+          owner: 'softprops',
+          repo: 'diffset',
+          ref: '2222222222222222222222222222222222222222',
+        });
+      } finally {
+        rmSync(eventDir, { force: true, recursive: true });
+      }
+    });
+    it('ignores pushed commit refs when custom base is configured', () => {
+      const eventDir = mkdtempSync(join(tmpdir(), 'diffset-'));
+      const eventPath = join(eventDir, 'event.json');
+      writeFileSync(
+        eventPath,
+        JSON.stringify({
+          commits: [{ id: '1111111111111111111111111111111111111111' }],
+          repository: { default_branch: 'main' },
+        }),
+      );
+
+      try {
+        const config = parseConfig({
+          GITHUB_EVENT_NAME: 'push',
+          GITHUB_EVENT_PATH: eventPath,
+          GITHUB_REF: 'refs/heads/main',
+          GITHUB_REPOSITORY: 'softprops/diffset',
+          GITHUB_SHA: 'b04376c43f66b8beed87abe6e28504781a4e461d',
+          INPUT_BASE: 'develop',
+          INPUT_TOKEN: 'aeiou',
+        });
+
+        assert.strictEqual(config.pushCommitRefs, undefined);
+        assert.strictEqual(intoParams(config).base, 'develop');
+      } finally {
+        rmSync(eventDir, { force: true, recursive: true });
+      }
+    });
+    it('ignores pushed commit refs for non-default branch pushes', () => {
+      const eventDir = mkdtempSync(join(tmpdir(), 'diffset-'));
+      const eventPath = join(eventDir, 'event.json');
+      writeFileSync(
+        eventPath,
+        JSON.stringify({
+          commits: [{ id: '1111111111111111111111111111111111111111' }],
+          repository: { default_branch: 'main' },
+        }),
+      );
+
+      try {
+        const config = parseConfig({
+          GITHUB_EVENT_NAME: 'push',
+          GITHUB_EVENT_PATH: eventPath,
+          GITHUB_REF: 'refs/heads/feature',
+          GITHUB_REPOSITORY: 'softprops/diffset',
+          GITHUB_SHA: 'b04376c43f66b8beed87abe6e28504781a4e461d',
+          INPUT_TOKEN: 'aeiou',
+        });
+
+        assert.strictEqual(config.pushCommitRefs, undefined);
       } finally {
         rmSync(eventDir, { force: true, recursive: true });
       }

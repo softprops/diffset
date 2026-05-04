@@ -19,6 +19,8 @@ inputs:
 outputs:
   files:
     description: "Space-delimited list of changed files"
+  files_json:
+    description: "JSON array of changed files"
 branding:
   color: "green"
   icon: "activity"

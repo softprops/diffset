@@ -44,10 +44,13 @@ jobs:
 +       uses: softprops/diffset@v3
       - name: Print Diffset
         env:
-          DIFFSET_FILES: ${{ steps.diffset.outputs.files }}
+          DIFFSET_FILES_JSON: ${{ steps.diffset.outputs.files_json }}
+        shell: bash
         run: |
-          read -r -a diffset_files <<< "${DIFFSET_FILES}"
-          ls -al "${diffset_files[@]}"
+          mapfile -t diffset_files < <(jq -r '.[]' <<< "${DIFFSET_FILES_JSON}")
+          if [ "${#diffset_files[@]}" -gt 0 ]; then
+            ls -al "${diffset_files[@]}"
+          fi
 ```
 
 ### 💅 Customizing
@@ -72,17 +75,20 @@ jobs:
       - name: Diffset
         id: diffset
         uses: softprops/diffset@v3
-+       with:
-+         special_files: |
++       env:
++         INPUT_SPECIAL_FILES: |
 +           src/special/**/*.ts
 +           src/or-these/**/*.ts
       - name: Print Special Files
-        if: steps.diffset.outputs.special_files
         env:
-          SPECIAL_FILES: ${{ steps.diffset.outputs.special_files }}
+          DIFFSET_OUTPUTS: ${{ toJSON(steps.diffset.outputs) }}
+        shell: bash
         run: |
-          read -r -a special_files <<< "${SPECIAL_FILES}"
-          ls -al "${special_files[@]}"
+          special_files_json="$(jq -r '.special_files_json // "[]"' <<< "${DIFFSET_OUTPUTS}")"
+          mapfile -t special_files < <(jq -r '.[]' <<< "${special_files_json}")
+          if [ "${#special_files[@]}" -gt 0 ]; then
+            ls -al "${special_files[@]}"
+          fi
       - name: Other work
         run: echo "..."
 ```
@@ -109,15 +115,20 @@ jobs:
 +         base: develop
       - name: Other work
         env:
-          DIFFSET_FILES: ${{ steps.diffset.outputs.files }}
+          DIFFSET_FILES_JSON: ${{ steps.diffset.outputs.files_json }}
+        shell: bash
         run: |
-          read -r -a diffset_files <<< "${DIFFSET_FILES}"
-          ls -al "${diffset_files[@]}"
+          mapfile -t diffset_files < <(jq -r '.[]' <<< "${DIFFSET_FILES_JSON}")
+          if [ "${#diffset_files[@]}" -gt 0 ]; then
+            ls -al "${diffset_files[@]}"
+          fi
 ```
 
 #### inputs
 
-The following are optional as `step.with` keys
+The following declared inputs are optional as `step.with` keys. Dynamic file
+filters can also be provided as `INPUT_*_FILES` environment variables, which
+keeps local workflow linting tools from warning about undeclared inputs.
 
 This action supports dynamically named inputs which will result in dynamically named outputs.
 Specifically this action accepts any inputs with a suffix of `_files`
@@ -139,13 +150,16 @@ The following outputs can be accessed via `${{ steps.<step-id>.outputs }}` from 
 This action supports dynamically named inputs which will result in dynamically named outputs.
 Specifically this action yields outputs based on inputs named with a suffix of `_files`
 
-| Name      | Type   | Description                                                                |
-| --------- | ------ | -------------------------------------------------------------------------- |
-| `files`   | string | A space delimited list of changed files                                    |
-| `*_files` | string | A space delimited list of files that changed that matched an input pattern |
+| Name            | Type   | Description                                                                |
+| --------------- | ------ | -------------------------------------------------------------------------- |
+| `files`         | string | A space delimited list of changed files                                    |
+| `files_json`    | string | A JSON array of changed files                                              |
+| `*_files`       | string | A space delimited list of files that changed that matched an input pattern |
+| `*_files_json`  | string | A JSON array of files that changed that matched an input pattern           |
 
-When passing outputs to shell commands, split the space-delimited value into an
-array first so each path is passed as a separate argument.
+The JSON outputs are preferred when passing file paths to shell commands because
+they preserve filenames containing spaces. The space-delimited outputs remain
+available for compatibility.
 
 ### 💁‍♀️ pro tips
 
@@ -163,12 +177,24 @@ jobs:
       - name: Diffset
         id: diffset
         uses: softprops/diffset@v3
-+       with:
-+         special_files: |
++       env:
++         INPUT_SPECIAL_FILES: |
 +           src/special/**/*.ts
 +           src/or-these/**/*.ts
++      - name: Check Special Files
++        id: special_files
++        env:
++          DIFFSET_OUTPUTS: ${{ toJSON(steps.diffset.outputs) }}
++        shell: bash
++        run: |
++          special_files_json="$(jq -r '.special_files_json // "[]"' <<< "${DIFFSET_OUTPUTS}")"
++          if [ "${special_files_json}" = "[]" ]; then
++            echo "changed=false" >> "${GITHUB_OUTPUT}"
++          else
++            echo "changed=true" >> "${GITHUB_OUTPUT}"
++          fi
       - name: Checkout
-+       if: steps.diffset.outputs.special_files
++       if: steps.special_files.outputs.changed == 'true'
         uses: actions/checkout@v6
 ```
 

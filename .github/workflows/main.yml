@@ -88,20 +88,25 @@ jobs:
 
       - name: Print Diffset
         env:
-          DIFFSET_FILES: ${{ steps.diffset.outputs.files }}
+          DIFFSET_FILES_JSON: ${{ steps.diffset.outputs.files_json }}
         shell: bash
         run: |
-          read -r -a diffset_files <<< "${DIFFSET_FILES}"
-          ls -al "${diffset_files[@]}"
+          mapfile -t diffset_files < <(jq -r '.[]' <<< "${DIFFSET_FILES_JSON}")
+          if [ "${#diffset_files[@]}" -gt 0 ]; then
+            ls -al "${diffset_files[@]}"
+          fi
 
       - name: Print MD Files
         env:
           DIFFSET_OUTPUTS: ${{ toJSON(steps.diffset.outputs) }}
         shell: bash
         run: |
-          md_files="$(jq -r '.md_files // empty' <<< "${DIFFSET_OUTPUTS}")"
-          if [ -n "${md_files}" ]; then
-            echo "Files changed were ${md_files}"
+          md_files_json="$(jq -r '.md_files_json // "[]"' <<< "${DIFFSET_OUTPUTS}")"
+          mapfile -t md_files < <(jq -r '.[]' <<< "${md_files_json}")
+          if [ "${#md_files[@]}" -gt 0 ]; then
+            printf 'Files changed were'
+            printf ' %s' "${md_files[@]}"
+            printf '\n'
           fi
 
       - name: Print Rust Files
@@ -109,7 +114,10 @@ jobs:
           DIFFSET_OUTPUTS: ${{ toJSON(steps.diffset.outputs) }}
         shell: bash
         run: |
-          rust_files="$(jq -r '.rust_files // empty' <<< "${DIFFSET_OUTPUTS}")"
-          if [ -n "${rust_files}" ]; then
-            echo "Files changed were ${rust_files}"
+          rust_files_json="$(jq -r '.rust_files_json // "[]"' <<< "${DIFFSET_OUTPUTS}")"
+          mapfile -t rust_files < <(jq -r '.[]' <<< "${rust_files_json}")
+          if [ "${#rust_files[@]}" -gt 0 ]; then
+            printf 'Files changed were'
+            printf ' %s' "${rust_files[@]}"
+            printf '\n'
           fi
