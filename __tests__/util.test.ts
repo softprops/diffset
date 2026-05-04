@@ -71,7 +71,7 @@ describe('util', () => {
         },
       );
     });
-    it('omits pull request number when a custom base is configured', () => {
+    it('includes pull request number when it is configured', () => {
       assert.deepStrictEqual(
         intoParams({
           defaultBranch: 'main',
@@ -89,6 +89,8 @@ describe('util', () => {
           base: 'develop',
           head: 'contributor:feature',
           owner: 'owner',
+          pullChangedFiles: 2,
+          pullNumber: 123,
           repo: 'repo',
           ref: 'b04376c43f66b8beed87abe6e28504781a4e461d',
         },
@@ -406,7 +408,64 @@ describe('util', () => {
         rmSync(eventDir, { force: true, recursive: true });
       }
     });
-    it('ignores pull request number when custom base is configured', () => {
+    it('keeps pull request number when custom base matches pull request base', () => {
+      const eventDir = mkdtempSync(join(tmpdir(), 'diffset-'));
+      const eventPath = join(eventDir, 'event.json');
+      writeFileSync(
+        eventPath,
+        JSON.stringify({
+          pull_request: {
+            base: {
+              ref: 'main',
+              repo: { full_name: 'softprops/diffset' },
+            },
+            head: {
+              label: 'contributor:feature',
+              ref: 'feature',
+              repo: { full_name: 'contributor/diffset' },
+            },
+            changed_files: 2,
+            number: 123,
+          },
+        }),
+      );
+
+      try {
+        const config = parseConfig({
+          GITHUB_EVENT_NAME: 'pull_request',
+          GITHUB_EVENT_PATH: eventPath,
+          GITHUB_REF: 'refs/pull/123/merge',
+          GITHUB_REPOSITORY: 'softprops/diffset',
+          GITHUB_SHA: 'b04376c43f66b8beed87abe6e28504781a4e461d',
+          INPUT_TOKEN: 'aeiou',
+          INPUT_BASE: 'main',
+        });
+
+        assert.deepStrictEqual(config, {
+          githubRef: 'refs/pull/123/merge',
+          githubRepository: 'softprops/diffset',
+          githubToken: 'aeiou',
+          base: 'main',
+          fileFilters: {},
+          pullChangedFiles: 2,
+          pullHead: 'contributor:feature',
+          pullNumber: 123,
+          sha: 'b04376c43f66b8beed87abe6e28504781a4e461d',
+        });
+        assert.deepStrictEqual(intoParams(config), {
+          base: 'main',
+          head: 'contributor:feature',
+          owner: 'softprops',
+          pullChangedFiles: 2,
+          pullNumber: 123,
+          repo: 'diffset',
+          ref: 'b04376c43f66b8beed87abe6e28504781a4e461d',
+        });
+      } finally {
+        rmSync(eventDir, { force: true, recursive: true });
+      }
+    });
+    it('ignores pull request number when custom base differs from pull request base', () => {
       const eventDir = mkdtempSync(join(tmpdir(), 'diffset-'));
       const eventPath = join(eventDir, 'event.json');
       writeFileSync(
