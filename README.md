@@ -93,6 +93,16 @@ jobs:
         run: echo "..."
 ```
 
+Patterns are applied in order. Prefix a pattern with `!` to remove matching
+files from a named set after an earlier pattern includes them.
+
+```yaml
+env:
+  INPUT_TS_FILES: |
+    **/*.ts
+    !**/*.test.ts
+```
+
 #### Custom base branch
 
 Diffset uses the repository default branch from the workflow event as a basis of comparison by default, falling back to "master" when the event does not include one. If you want a different base branch you can use the `steps.with` key to provide a custom `base`
