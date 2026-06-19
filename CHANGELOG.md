@@ -1,3 +1,7 @@
+## 3.1.1
+
+- maintenance release with updated dependencies
+
 ## 3.1.0
 
 - Add path-safe JSON outputs for changed files and dynamic file filters
