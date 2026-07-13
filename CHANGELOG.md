@@ -1,3 +1,9 @@
+## 3.1.2
+
+- Handle non-Error action failures safely
+- Add complete production-source coverage and enforce coverage thresholds
+- Type-check tests and upgrade the development toolchain to TypeScript 7
+
 ## 3.1.1
 
 - maintenance release with updated dependencies
