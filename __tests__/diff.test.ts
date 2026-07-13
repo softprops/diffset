@@ -5,7 +5,7 @@ import { assert, describe, it } from 'vitest';
 type TestFile = { filename?: string; previous_filename?: string; status?: string };
 type TestCommit = { sha?: string };
 type PaginateResponse = { data: { commits?: Array<TestCommit>; files?: Array<TestFile> } };
-type PaginateMap = (response: PaginateResponse) => Array<TestCommit> | Array<TestFile>;
+type PaginateMap = (response: PaginateResponse) => Array<TestCommit | TestFile>;
 
 const params: Params = {
   base: 'master',
