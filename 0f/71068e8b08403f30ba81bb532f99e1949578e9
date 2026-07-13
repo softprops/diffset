@@ -1,0 +1,19 @@
+.github/workflows/main.yml
+  s_c3da3f8a44db69::t_3e78779ddb829b 20,24,74,78
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "0f71068e8b08403f30ba81bb532f99e1949578e9",
+  "prompts": {},
+  "sessions": {
+    "s_c3da3f8a44db69": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f58db-52e5-7243-9cb2-720a0018d36d",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Rui Chen <rui@chenrui.dev>"
+    }
+  }
+}
