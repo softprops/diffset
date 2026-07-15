@@ -85,39 +85,43 @@ jobs:
         uses: ./ # Uses an action in the root directory
         env:
           INPUT_MD_FILES: "*.md"
+          INPUT_NO_MATCH_FILES: "**/*.definitely-missing"
 
-      - name: Print Diffset
+      - name: Validate Diffset outputs
         env:
           DIFFSET_FILES_JSON: ${{ steps.diffset.outputs.files_json }}
-        shell: bash
-        run: |
-          mapfile -t diffset_files < <(jq -r '.[]' <<< "${DIFFSET_FILES_JSON}")
-          if [ "${#diffset_files[@]}" -gt 0 ]; then
-            ls -al "${diffset_files[@]}"
-          fi
-
-      - name: Print MD Files
-        env:
           DIFFSET_OUTPUTS: ${{ toJSON(steps.diffset.outputs) }}
         shell: bash
         run: |
+          set -euo pipefail
+
+          jq -e '
+            type == "array"
+            and all(.[]; type == "string")
+            and length == (unique | length)
+          ' <<< "${DIFFSET_FILES_JSON}" >/dev/null
+
           md_files_json="$(jq -r '.md_files_json // "[]"' <<< "${DIFFSET_OUTPUTS}")"
-          mapfile -t md_files < <(jq -r '.[]' <<< "${md_files_json}")
-          if [ "${#md_files[@]}" -gt 0 ]; then
-            printf 'Files changed were'
-            printf ' %s' "${md_files[@]}"
-            printf '\n'
-          fi
+          jq -e --argjson base "${DIFFSET_FILES_JSON}" '
+            type == "array"
+            and all(.[]; type == "string")
+            and length == (unique | length)
+            and all(.[];
+              . as $file
+              | (($base | index($file)) != null)
+                and ($file | test("^[^/]+\\.md$"))
+            )
+          ' <<< "${md_files_json}" >/dev/null
 
-      - name: Print Rust Files
-        env:
-          DIFFSET_OUTPUTS: ${{ toJSON(steps.diffset.outputs) }}
-        shell: bash
-        run: |
-          rust_files_json="$(jq -r '.rust_files_json // "[]"' <<< "${DIFFSET_OUTPUTS}")"
-          mapfile -t rust_files < <(jq -r '.[]' <<< "${rust_files_json}")
-          if [ "${#rust_files[@]}" -gt 0 ]; then
-            printf 'Files changed were'
-            printf ' %s' "${rust_files[@]}"
-            printf '\n'
-          fi
+          jq -e '
+            .no_match_files == null
+            and .no_match_files_json == null
+          ' <<< "${DIFFSET_OUTPUTS}" >/dev/null
+
+          while IFS= read -r encoded_file; do
+            file="$(base64 --decode <<< "${encoded_file}")"
+            if [ ! -e "${file}" ]; then
+              echo "reported path does not exist after checkout: ${file}" >&2
+              exit 1
+            fi
+          done < <(jq -r '.[] | @base64' <<< "${DIFFSET_FILES_JSON}")

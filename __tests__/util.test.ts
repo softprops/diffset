@@ -4,7 +4,62 @@ import { join } from 'node:path';
 
 import { intoParams, parseConfig } from '../src/util';
 
-import { assert, describe, it } from 'vitest';
+import { assert, describe, expect, it } from 'vitest';
+
+const githubEnv = {
+  GITHUB_REF: 'refs/heads/feature',
+  GITHUB_REPOSITORY: 'softprops/diffset',
+  GITHUB_SHA: 'b04376c43f66b8beed87abe6e28504781a4e461d',
+};
+
+const withEventContents = <T>(contents: string, callback: (eventPath: string) => T): T => {
+  const eventDir = mkdtempSync(join(tmpdir(), 'diffset-'));
+  const eventPath = join(eventDir, 'event.json');
+  writeFileSync(eventPath, contents);
+  try {
+    return callback(eventPath);
+  } finally {
+    rmSync(eventDir, { force: true, recursive: true });
+  }
+};
+
+const withEvent = <T>(payload: unknown, callback: (eventPath: string) => T): T =>
+  withEventContents(JSON.stringify(payload), callback);
+
+const BeforeSha = '1111111111111111111111111111111111111111';
+const AfterSha = 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
+const ZeroSha = '0000000000000000000000000000000000000000';
+
+const pushCommits = (count: number): Array<{ id: string }> =>
+  Array.from({ length: count }, (_, index) => ({
+    id: (index + 1).toString(16).padStart(40, '0'),
+  }));
+
+const CappedPushCommits = pushCommits(2_048);
+const CappedPushCommitRefs = CappedPushCommits.map((commit) => commit.id);
+
+const pushParams = (
+  payload: Record<string, unknown>,
+  envOverrides: Record<string, string | undefined> = {},
+) =>
+  withEvent({ repository: { default_branch: 'main' }, ...payload }, (eventPath) =>
+    intoParams(
+      parseConfig({
+        ...githubEnv,
+        GITHUB_EVENT_NAME: 'push',
+        GITHUB_EVENT_PATH: eventPath,
+        GITHUB_REF: 'refs/heads/main',
+        GITHUB_SHA: AfterSha,
+        ...envOverrides,
+      }),
+    ),
+  );
+
+const pushSelection = (params: ReturnType<typeof pushParams>) => ({
+  base: params.base,
+  ...(params.commitRefs == undefined ? {} : { commitRefs: params.commitRefs }),
+  head: params.head,
+});
 
 describe('util', () => {
   describe('infoParams', () => {
@@ -134,7 +189,6 @@ describe('util', () => {
           githubRef: 'head/refs/test',
           githubRepository: 'softprops/diffset',
           githubToken: 'aeiou',
-          base: undefined,
           fileFilters: {
             foo_files: '*.foo',
           },
@@ -185,7 +239,6 @@ describe('util', () => {
           githubRef: 'refs/heads/feature',
           githubRepository: 'softprops/diffset',
           githubToken: 'aeiou',
-          base: undefined,
           defaultBranch: 'main',
           fileFilters: {},
           sha: 'b04376c43f66b8beed87abe6e28504781a4e461d',
@@ -392,7 +445,6 @@ describe('util', () => {
             githubRef: 'refs/pull/123/merge',
             githubRepository: 'softprops/diffset',
             githubToken: 'aeiou',
-            base: undefined,
             defaultBranch: 'trunk',
             fileFilters: {
               foo_files: '*.foo',
@@ -510,6 +562,215 @@ describe('util', () => {
       } finally {
         rmSync(eventDir, { force: true, recursive: true });
       }
+    });
+
+    it.each([
+      [undefined, 'Missing required GitHub context: GITHUB_REPOSITORY'],
+      ['', 'Missing required GitHub context: GITHUB_REPOSITORY'],
+      ['owner', 'Invalid GITHUB_REPOSITORY: expected "owner/repo"'],
+      ['/repo', 'Invalid GITHUB_REPOSITORY: expected "owner/repo"'],
+      ['owner/', 'Invalid GITHUB_REPOSITORY: expected "owner/repo"'],
+      ['owner/repo/extra', 'Invalid GITHUB_REPOSITORY: expected "owner/repo"'],
+    ])('rejects invalid repository context %s', (repository, message) => {
+      expect(() => parseConfig({ ...githubEnv, GITHUB_REPOSITORY: repository })).toThrow(message);
+    });
+
+    it('rejects missing ref and SHA context independently', () => {
+      expect(() =>
+        parseConfig({
+          GITHUB_REPOSITORY: 'softprops/diffset',
+          GITHUB_SHA: githubEnv.GITHUB_SHA,
+        }),
+      ).toThrow('Missing required GitHub context: GITHUB_HEAD_REF or GITHUB_REF');
+      expect(() =>
+        parseConfig({
+          GITHUB_REF: githubEnv.GITHUB_REF,
+          GITHUB_REPOSITORY: 'softprops/diffset',
+        }),
+      ).toThrow('Missing required GitHub context: GITHUB_SHA');
+    });
+
+    it('trims required context and tag refs before producing API parameters', () => {
+      const config = parseConfig({
+        GITHUB_REF: ' refs/tags/v4.0.0 ',
+        GITHUB_REPOSITORY: ' softprops/diffset ',
+        GITHUB_SHA: ` ${githubEnv.GITHUB_SHA} `,
+      });
+
+      assert.deepStrictEqual(intoParams(config), {
+        base: 'master',
+        head: 'v4.0.0',
+        owner: 'softprops',
+        repo: 'diffset',
+        ref: githubEnv.GITHUB_SHA,
+      });
+    });
+
+    it('reports unreadable and invalid event payloads precisely', () => {
+      expect(() =>
+        parseConfig({ ...githubEnv, GITHUB_EVENT_PATH: '/missing/diffset-event.json' }),
+      ).toThrow('Unable to read GitHub event payload from GITHUB_EVENT_PATH');
+      withEventContents('{invalid', (eventPath) => {
+        expect(() => parseConfig({ ...githubEnv, GITHUB_EVENT_PATH: eventPath })).toThrow(
+          'Invalid JSON in GitHub event payload from GITHUB_EVENT_PATH',
+        );
+      });
+      withEvent([], (eventPath) => {
+        expect(() => parseConfig({ ...githubEnv, GITHUB_EVENT_PATH: eventPath })).toThrow(
+          'GitHub event payload must be a JSON object',
+        );
+      });
+    });
+
+    it.each([
+      {
+        expected: { base: 'main', commitRefs: [BeforeSha, AfterSha], head: 'main' },
+        name: 'uses valid commit refs below the payload cap when size is absent',
+        payload: {
+          after: AfterSha,
+          before: BeforeSha,
+          commits: [{ id: BeforeSha }, { id: AfterSha }],
+        },
+      },
+      {
+        expected: { base: BeforeSha, head: AfterSha },
+        name: 'uses the push range at the payload cap when size is absent',
+        payload: { after: AfterSha, before: BeforeSha, commits: CappedPushCommits },
+      },
+      {
+        expected: { base: 'main', commitRefs: CappedPushCommitRefs, head: 'main' },
+        name: 'retains capped commit refs for a new-ref push',
+        payload: { after: AfterSha, before: ZeroSha, commits: CappedPushCommits },
+      },
+      {
+        expected: { base: BeforeSha, head: AfterSha },
+        name: 'uses the range when a raw commit entry has no usable ID',
+        payload: {
+          after: AfterSha,
+          before: BeforeSha,
+          commits: [{ id: BeforeSha }, {}, { id: AfterSha }],
+        },
+      },
+      {
+        expected: { base: BeforeSha, head: AfterSha },
+        name: 'uses the range when size exceeds the raw commit count',
+        payload: { after: AfterSha, before: BeforeSha, commits: [{ id: BeforeSha }], size: 2 },
+      },
+      {
+        expected: { base: 'main', commitRefs: [BeforeSha, AfterSha], head: 'main' },
+        name: 'uses commit refs when size matches a valid list below the cap',
+        payload: {
+          after: AfterSha,
+          before: BeforeSha,
+          commits: [{ id: BeforeSha }, { id: AfterSha }],
+          size: 2,
+        },
+      },
+      {
+        expected: { base: BeforeSha, head: AfterSha },
+        name: 'uses the range for an empty commit list',
+        payload: { after: AfterSha, before: BeforeSha, commits: [] },
+      },
+      {
+        expected: { base: 'main', head: 'main' },
+        name: 'keeps same-ref behavior for an empty new-ref push',
+        payload: { after: AfterSha, before: ZeroSha, commits: [] },
+      },
+      {
+        env: { INPUT_BASE: 'develop' },
+        expected: { base: 'develop', head: 'main' },
+        name: 'lets a custom base bypass push range selection',
+        payload: { after: AfterSha, before: BeforeSha, commits: CappedPushCommits },
+      },
+      {
+        env: { GITHUB_REF: 'refs/heads/feature' },
+        expected: { base: 'main', head: 'feature' },
+        name: 'lets a non-default branch bypass push range selection',
+        payload: { after: AfterSha, before: BeforeSha, commits: CappedPushCommits },
+      },
+    ])('$name', ({ env, expected, payload }) => {
+      assert.deepStrictEqual(pushSelection(pushParams(payload, env)), expected);
+    });
+
+    it('supports pull_request_target and a top-level pull request number', () => {
+      withEvent({ number: 123, repository: { default_branch: 'main' } }, (eventPath) => {
+        const config = parseConfig({
+          ...githubEnv,
+          GITHUB_EVENT_NAME: 'pull_request_target',
+          GITHUB_EVENT_PATH: eventPath,
+          GITHUB_HEAD_REF: 'feature',
+          GITHUB_REF: 'refs/heads/main',
+        });
+
+        assert.deepStrictEqual(intoParams(config), {
+          base: 'main',
+          head: 'feature',
+          owner: 'softprops',
+          pullNumber: 123,
+          repo: 'diffset',
+          ref: githubEnv.GITHUB_SHA,
+        });
+      });
+    });
+
+    it('uses a same-repository pull request branch instead of its owner label', () => {
+      withEvent(
+        {
+          pull_request: {
+            base: { ref: 'main', repo: { full_name: 'softprops/diffset' } },
+            head: {
+              label: 'softprops:feature',
+              ref: 'feature',
+              repo: { full_name: 'softprops/diffset' },
+            },
+            number: 123,
+          },
+        },
+        (eventPath) => {
+          const config = parseConfig({
+            ...githubEnv,
+            GITHUB_EVENT_NAME: 'pull_request',
+            GITHUB_EVENT_PATH: eventPath,
+            GITHUB_REF: 'refs/pull/123/merge',
+          });
+
+          assert.deepStrictEqual(intoParams(config), {
+            base: 'main',
+            head: 'feature',
+            owner: 'softprops',
+            pullNumber: 123,
+            repo: 'diffset',
+            ref: githubEnv.GITHUB_SHA,
+          });
+        },
+      );
+    });
+
+    it('ignores malformed optional pull request reference objects', () => {
+      withEvent(
+        {
+          repository: { default_branch: 'main' },
+          pull_request: { base: 'main', head: [], number: 123 },
+        },
+        (eventPath) => {
+          const config = parseConfig({
+            ...githubEnv,
+            GITHUB_EVENT_NAME: 'pull_request',
+            GITHUB_EVENT_PATH: eventPath,
+            GITHUB_HEAD_REF: 'feature',
+            GITHUB_REF: 'refs/pull/123/merge',
+          });
+
+          assert.deepStrictEqual(intoParams(config), {
+            base: 'main',
+            head: 'feature',
+            owner: 'softprops',
+            pullNumber: 123,
+            repo: 'diffset',
+            ref: githubEnv.GITHUB_SHA,
+          });
+        },
+      );
     });
   });
 });

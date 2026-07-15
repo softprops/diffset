@@ -24,7 +24,7 @@ Many command line tools accept a list of files as inputs to limit the amount of 
 
 ## 🤸 Usage
 
-The typical setup for diffset involves adding job step using `softprops/diffset@v3`.
+The typical setup for diffset involves adding a job step using `softprops/diffset@v3`.
 
 This will collect a list of files that have changed and export them to an output named `files`. It retrieves this list of files from the GitHub api and as such it will need your repositories `GITHUB_TOKEN` secret.
 
@@ -59,7 +59,7 @@ The default behavior of diff is to simply introduce an output named `files` whic
 
 #### Custom diff sets
 
-Diffset also allows you to create filters for named sets of files to avoid doing unessessary work within your pipeline and produces an named output for those sets of files when they changed. These named sets of files can include multiple patterns for any given set to allow for maximum flexibility.
+Diffset also allows you to create filters for named sets of files to avoid unnecessary work within your pipeline and produces a named output for those sets when their files change. Each named set can include multiple patterns for maximum flexibility.
 
 ```diff
 name: Main
@@ -94,7 +94,9 @@ jobs:
 ```
 
 Patterns are applied in order. Prefix a pattern with `!` to remove matching
-files from a named set after an earlier pattern includes them.
+files from a named set after an earlier pattern includes them. Later positive
+patterns can re-include files, and the final output preserves the order of the
+original changed-file list without duplicates.
 
 ```yaml
 env:
@@ -151,6 +153,11 @@ Specifically this action accepts any inputs with a suffix of `_files`
 
 Removed files are excluded from outputs by default because deleted paths usually cannot be passed to tools after checkout.
 
+The action validates `GITHUB_REPOSITORY`, `GITHUB_SHA`, and a usable GitHub ref
+before calling the API. If `GITHUB_EVENT_PATH` is set, its file must be readable
+and contain a JSON object. GitHub Actions supplies this context automatically;
+local invocations need to provide equivalent values.
+
 For least-privilege workflows, `permissions: contents: read` is enough for normal compare diffs. Large pull requests may also need `pull-requests: read` when diffset falls back to the Pulls API to avoid truncated file lists.
 
 #### outputs
@@ -168,12 +175,17 @@ Specifically this action yields outputs based on inputs named with a suffix of `
 | `*_files_json`  | string | A JSON array of files that changed that matched an input pattern           |
 
 The JSON outputs are preferred when passing file paths to shell commands because
-they preserve filenames containing spaces. The space-delimited outputs remain
-available for compatibility.
+they are JSON-encoded arrays that preserve each filename exactly, including
+spaces, quotes, backslashes, and Unicode. The space-delimited outputs remain
+available for compatibility but are not shell-safe.
+
+Base outputs are always emitted, including `files_json: []` for an empty diff.
+Dynamic outputs are emitted only when their named filter matches at least one
+file; consumers can treat an absent `*_files_json` output as `[]`.
 
 ### 💁‍♀️ pro tips
 
-In more complicated workflows you may find that simply cloning your repository takes a succfiently long about of time. In these cases you can opt to generate a diffset first, then checkout only if needed.
+In more complicated workflows you may find that simply cloning your repository takes a significant amount of time. In these cases you can generate a diffset first, then check out only if needed.
 
 ```diff
 name: Main

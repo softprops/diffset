@@ -4,6 +4,7 @@ import { Octokit } from '@octokit/rest';
 
 import { GitHubDiff, sets } from './diff.js';
 import type { Diff } from './diff.js';
+import { OctokitGitHubClient } from './github.js';
 import { listOutputs } from './output.js';
 import { intoParams, parseConfig } from './util.js';
 
@@ -11,45 +12,54 @@ type Warning = typeof warning;
 
 export type ThrottleRequestOptions = {
   method: string;
-  request: {
-    [option: string]: unknown;
-    retryCount?: number;
-  };
   url: string;
 };
 
 export type ThrottleOptions = {
-  onRateLimit: (retryAfter: number, options: ThrottleRequestOptions) => true | undefined;
-  onSecondaryRateLimit: (retryAfter: number, options: ThrottleRequestOptions) => undefined;
+  onRateLimit: (
+    retryAfter: number,
+    options: ThrottleRequestOptions,
+    octokit: unknown,
+    retryCount: number,
+  ) => true | undefined;
+  onSecondaryRateLimit: (
+    retryAfter: number,
+    options: ThrottleRequestOptions,
+    octokit: unknown,
+    retryCount: number,
+  ) => undefined;
 };
 
 export const createThrottleOptions = (warn: Warning): ThrottleOptions => ({
-  onRateLimit: (retryAfter, options) => {
+  onRateLimit: (retryAfter, options, _octokit, retryCount) => {
     warn(`Request quota exhausted for request ${options.method} ${options.url}`);
-    if (options.request.retryCount === 0) {
+    if (retryCount === 0) {
       warn(`Retrying after ${retryAfter} seconds!`);
       return true;
     }
+    return undefined;
   },
   onSecondaryRateLimit: (_retryAfter, options) => {
-    warn(`Abuse detected for request ${options.method} ${options.url}`);
+    warn(`Secondary rate limit detected for request ${options.method} ${options.url}`);
+    return undefined;
   },
 });
 
-const createDiff = (githubToken: string, warn: Warning): Diff => {
+export const createDiff = (githubToken: string, warn: Warning): Diff => {
   const ThrottledOctokit = Octokit.plugin(throttling);
   return new GitHubDiff(
-    new ThrottledOctokit({
-      auth: githubToken,
-      throttle: createThrottleOptions(warn),
-    }),
+    new OctokitGitHubClient(
+      new ThrottledOctokit({
+        auth: githubToken,
+        throttle: createThrottleOptions(warn),
+      }),
+    ),
   );
 };
 
 export type ActionDependencies = {
   createDiff: typeof createDiff;
   debug: typeof debug;
-  logError: (error: unknown) => void;
   setFailed: typeof setFailed;
   setOutput: typeof setOutput;
   warning: Warning;
@@ -58,7 +68,6 @@ export type ActionDependencies = {
 const defaultDependencies: ActionDependencies = {
   createDiff,
   debug,
-  logError: console.log,
   setFailed,
   setOutput,
   warning,
@@ -85,7 +94,6 @@ export const run = async (
       setListOutput(key, matches, dependencies.setOutput);
     }
   } catch (error) {
-    dependencies.logError(error);
     dependencies.setFailed(error instanceof Error ? error.message : String(error));
   }
 };

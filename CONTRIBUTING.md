@@ -1,18 +1,30 @@
-## bootstrapping
+# Contributing
 
-This a [JavaScript](https://help.github.com/en/articles/about-actions#types-of-actions)  action but uses [TypeScript](https://www.typescriptlang.org/docs/home.html) to generate that JavaScript.
+This is a Node 24 GitHub Action written in TypeScript. Use the Node version in
+`.tool-versions` and install the locked dependency graph from the repository
+root:
 
-You can bootstrap your envrinment with a modern version of npm and by running `npm i` at the root of this repo.
+```sh
+npm ci
+```
 
-## testing
+## Validation
 
-Tests can be found under under `__tests__` directory and are runnable with the `npm t` command
+Run the same source, test, formatting, and bundle checks used by CI:
 
-## source code
+```sh
+npm run typecheck
+npm test
+npm run fmtcheck
+npm run build
+git diff --check
+```
 
-Source code can be found under the `src` directory. Running `npm run build` will generate the JavaScript that will run within GitHub workflows.
+Tests live in `__tests__/`. Production source lives in `src/`, and
+`npm run build` regenerates the checked-in `dist/index.js` action bundle. Include
+the regenerated bundle in the same commit as any production-source change.
 
-## formatting
+## Formatting
 
-A minimal attempt at keeping a consistent code style is can be applied by running `npm run fmt`
-
+Run `npm run fmt` only when intentionally formatting touched TypeScript files.
+Avoid unrelated formatting churn.

@@ -1,11 +1,14 @@
-import { GitHubDiff, Params, sets } from '../src/diff';
+import { GitHubDiff, sets, type Params } from '../src/diff';
+import type {
+  ChangedCommit,
+  ChangedFile,
+  CommitRequest,
+  CompareRequest,
+  GitHubClient,
+  PullFilesRequest,
+} from '../src/github';
 
-import { assert, describe, it } from 'vitest';
-
-type TestFile = { filename?: string; previous_filename?: string; status?: string };
-type TestCommit = { sha?: string };
-type PaginateResponse = { data: { commits?: Array<TestCommit>; files?: Array<TestFile> } };
-type PaginateMap = (response: PaginateResponse) => Array<TestCommit | TestFile>;
+import { assert, describe, expect, it } from 'vitest';
 
 const params: Params = {
   base: 'master',
@@ -20,60 +23,61 @@ const fakeGithub = ({
   commitPagesByRef = {},
   commitFiles = [],
   compareError,
+  compareCommitError,
   compareCommitPages = [],
   compareFiles = [],
+  commitError,
   pullFiles = [],
+  pullError,
 }: {
-  commitPages?: Array<Array<TestFile>>;
-  commitPagesByRef?: Record<string, Array<Array<TestFile>>>;
-  commitFiles?: Array<TestFile>;
+  commitPages?: Array<Array<ChangedFile>>;
+  commitPagesByRef?: Record<string, Array<Array<ChangedFile>>>;
+  commitFiles?: Array<ChangedFile>;
+  commitError?: Error;
+  compareCommitError?: Error;
   compareError?: Error;
-  compareCommitPages?: Array<Array<TestCommit>>;
-  compareFiles?: Array<TestFile>;
-  pullFiles?: Array<TestFile>;
+  compareCommitPages?: Array<Array<ChangedCommit>>;
+  compareFiles?: Array<ChangedFile>;
+  pullError?: Error;
+  pullFiles?: Array<ChangedFile>;
 }) => {
-  const calls: Record<string, unknown> = {};
-  const getCommit = async (request: unknown) => {
-    calls.getCommit = request;
-    return { data: { files: commitFiles } };
+  const calls: {
+    commitFiles: Array<CommitRequest>;
+    compareCommits: Array<CompareRequest>;
+    compareFiles: Array<CompareRequest>;
+    pullFiles: Array<PullFilesRequest>;
+  } = {
+    commitFiles: [],
+    compareCommits: [],
+    compareFiles: [],
+    pullFiles: [],
   };
-  const compareCommits = async (request: unknown) => {
-    calls.compareCommits = request;
-    if (compareError != undefined) {
-      throw compareError;
-    }
-    return { data: { files: compareFiles } };
-  };
-  const listFiles = () => undefined;
-  const github = {
-    repos: {
-      getCommit,
-      compareCommits,
-    },
-    pulls: {
-      listFiles,
-    },
-    paginate: async (endpoint: unknown, request: unknown, map?: PaginateMap) => {
-      calls.paginateEndpoint = endpoint;
-      calls.paginate = request;
-      calls.paginateCalls = [
-        ...((calls.paginateCalls as Array<unknown> | undefined) || []),
-        request,
-      ];
-      if (endpoint === getCommit) {
-        const ref = (request as { ref?: string }).ref;
-        const pages = (ref != undefined ? commitPagesByRef[ref] : undefined) ||
-          commitPages || [commitFiles];
-        if (map != undefined) {
-          return pages.flatMap((files) => map({ data: { files } }));
-        }
-        return pages.flat();
+  const github: GitHubClient = {
+    commitFiles: async (request) => {
+      calls.commitFiles.push(request);
+      if (commitError != undefined) {
+        throw commitError;
       }
-      if (endpoint === compareCommits) {
-        if (map != undefined) {
-          return compareCommitPages.flatMap((commits) => map({ data: { commits } }));
-        }
-        return compareCommitPages.flat();
+      return (commitPagesByRef[request.ref] ?? commitPages ?? [commitFiles]).flat();
+    },
+    compareCommits: async (request) => {
+      calls.compareCommits.push(request);
+      if (compareCommitError != undefined) {
+        throw compareCommitError;
+      }
+      return compareCommitPages.flat();
+    },
+    compareFiles: async (request) => {
+      calls.compareFiles.push(request);
+      if (compareError != undefined) {
+        throw compareError;
+      }
+      return compareFiles;
+    },
+    pullFiles: async (request) => {
+      calls.pullFiles.push(request);
+      if (pullError != undefined) {
+        throw pullError;
       }
       return pullFiles;
     },
@@ -92,13 +96,12 @@ describe('diff', () => {
         ],
       });
 
-      const response = await new GitHubDiff(github as never).diff(params);
+      const response = await new GitHubDiff(github).diff(params);
 
       assert.deepStrictEqual(response, ['added.txt', 'changed.txt']);
-      assert.deepStrictEqual(calls.compareCommits, {
-        ...params,
-        ref: undefined,
-      });
+      assert.deepStrictEqual(calls.compareFiles, [
+        { base: 'master', head: 'feature', owner: 'owner', repo: 'repo' },
+      ]);
     });
 
     it('includes removed files when requested', async () => {
@@ -109,7 +112,7 @@ describe('diff', () => {
         ],
       });
 
-      const response = await new GitHubDiff(github as never).diff({
+      const response = await new GitHubDiff(github).diff({
         ...params,
         includeRemoved: true,
       });
@@ -136,13 +139,13 @@ describe('diff', () => {
         },
       });
 
-      const response = await new GitHubDiff(github as never).diff({
+      const response = await new GitHubDiff(github).diff({
         ...params,
         commitRefs: ['first', 'second'],
       });
 
       assert.deepStrictEqual(response, ['first.txt', 'second.txt']);
-      assert.deepStrictEqual(calls.paginateCalls, [
+      assert.deepStrictEqual(calls.commitFiles, [
         { owner: 'owner', repo: 'repo', ref: 'first', per_page: 100 },
         { owner: 'owner', repo: 'repo', ref: 'second', per_page: 100 },
       ]);
@@ -164,7 +167,7 @@ describe('diff', () => {
         },
       });
 
-      const response = await new GitHubDiff(github as never).diff({
+      const response = await new GitHubDiff(github).diff({
         ...params,
         commitRefs: ['first', 'second'],
       });
@@ -180,7 +183,7 @@ describe('diff', () => {
         },
       });
 
-      const response = await new GitHubDiff(github as never).diff({
+      const response = await new GitHubDiff(github).diff({
         ...params,
         includeRemoved: true,
         commitRefs: ['first', 'second'],
@@ -201,17 +204,13 @@ describe('diff', () => {
       });
       const sameRefParams = { ...params, head: 'master' };
 
-      const response = await new GitHubDiff(github as never).diff(sameRefParams);
+      const response = await new GitHubDiff(github).diff(sameRefParams);
 
       assert.deepStrictEqual(response, ['added.txt', 'changed.txt']);
-      assert.strictEqual(calls.getCommit, undefined);
-      assert.strictEqual(calls.paginateEndpoint, github.repos.getCommit);
-      assert.deepStrictEqual(calls.paginate, {
-        owner: 'owner',
-        repo: 'repo',
-        ref: 'abc123',
-        per_page: 100,
-      });
+      assert.deepStrictEqual(calls.compareFiles, []);
+      assert.deepStrictEqual(calls.commitFiles, [
+        { owner: 'owner', repo: 'repo', ref: 'abc123', per_page: 100 },
+      ]);
     });
 
     it('keeps pull request diffs on the compare api when it succeeds', async () => {
@@ -222,7 +221,7 @@ describe('diff', () => {
         ],
       });
 
-      const response = await new GitHubDiff(github as never).diff({
+      const response = await new GitHubDiff(github).diff({
         ...params,
         base: 'main',
         head: 'fork:feature',
@@ -231,13 +230,10 @@ describe('diff', () => {
       });
 
       assert.deepStrictEqual(response, ['src/main.ts']);
-      assert.deepStrictEqual(calls.compareCommits, {
-        ...params,
-        base: 'main',
-        head: 'fork:feature',
-        ref: undefined,
-      });
-      assert.strictEqual(calls.paginate, undefined);
+      assert.deepStrictEqual(calls.compareFiles, [
+        { base: 'main', head: 'fork:feature', owner: 'owner', repo: 'repo' },
+      ]);
+      assert.deepStrictEqual(calls.pullFiles, []);
     });
 
     it('falls back to pull request files when compare output is truncated', async () => {
@@ -250,24 +246,19 @@ describe('diff', () => {
         ],
       });
 
-      const response = await new GitHubDiff(github as never).diff({
+      const response = await new GitHubDiff(github).diff({
         ...params,
         pullChangedFiles: 3,
         pullNumber: 123,
       });
 
       assert.deepStrictEqual(response, ['src/main.ts', 'src/other.ts']);
-      assert.deepStrictEqual(calls.compareCommits, {
-        ...params,
-        ref: undefined,
-      });
-      assert.strictEqual(calls.paginateEndpoint, github.pulls.listFiles);
-      assert.deepStrictEqual(calls.paginate, {
-        owner: 'owner',
-        repo: 'repo',
-        pull_number: 123,
-        per_page: 100,
-      });
+      assert.deepStrictEqual(calls.compareFiles, [
+        { base: 'master', head: 'feature', owner: 'owner', repo: 'repo' },
+      ]);
+      assert.deepStrictEqual(calls.pullFiles, [
+        { owner: 'owner', repo: 'repo', pull_number: 123, per_page: 100 },
+      ]);
     });
 
     it('includes removed files from truncated pull request fallback when requested', async () => {
@@ -279,7 +270,7 @@ describe('diff', () => {
         ],
       });
 
-      const response = await new GitHubDiff(github as never).diff({
+      const response = await new GitHubDiff(github).diff({
         ...params,
         includeRemoved: true,
         pullChangedFiles: 2,
@@ -303,19 +294,15 @@ describe('diff', () => {
         ],
       });
 
-      const response = await new GitHubDiff(github as never).diff({
+      const response = await new GitHubDiff(github).diff({
         ...params,
         pullNumber: 123,
       });
 
       assert.deepStrictEqual(response, ['src/main.ts', 'src/other.ts']);
-      assert.strictEqual(calls.paginateEndpoint, github.pulls.listFiles);
-      assert.deepStrictEqual(calls.paginate, {
-        owner: 'owner',
-        repo: 'repo',
-        pull_number: 123,
-        per_page: 100,
-      });
+      assert.deepStrictEqual(calls.pullFiles, [
+        { owner: 'owner', repo: 'repo', pull_number: 123, per_page: 100 },
+      ]);
     });
 
     it('falls back to commit files when compare output may be truncated without a pull request', async () => {
@@ -333,11 +320,13 @@ describe('diff', () => {
         },
       });
 
-      const response = await new GitHubDiff(github as never).diff(params);
+      const response = await new GitHubDiff(github).diff(params);
 
       assert.deepStrictEqual(response, ['src/first.ts', 'src/third.ts']);
-      assert.deepStrictEqual(calls.paginateCalls, [
-        { ...params, ref: undefined, per_page: 100 },
+      assert.deepStrictEqual(calls.compareCommits, [
+        { base: 'master', head: 'feature', owner: 'owner', repo: 'repo', per_page: 100 },
+      ]);
+      assert.deepStrictEqual(calls.commitFiles, [
         { owner: 'owner', repo: 'repo', ref: 'first', per_page: 100 },
         { owner: 'owner', repo: 'repo', ref: 'second', per_page: 100 },
         { owner: 'owner', repo: 'repo', ref: 'third', per_page: 100 },
@@ -353,24 +342,188 @@ describe('diff', () => {
         ],
       });
 
-      const response = await new GitHubDiff(github as never).diff({
+      const response = await new GitHubDiff(github).diff({
         ...params,
         pullNumber: 123,
       });
 
       assert.deepStrictEqual(response, ['src/main.ts']);
-      assert.deepStrictEqual(calls.compareCommits, {
-        ...params,
-        ref: undefined,
-      });
-      assert.strictEqual(calls.paginateEndpoint, github.pulls.listFiles);
-      assert.deepStrictEqual(calls.paginate, {
-        owner: 'owner',
-        repo: 'repo',
-        pull_number: 123,
-        per_page: 100,
-      });
+      assert.deepStrictEqual(calls.compareFiles, [
+        { base: 'master', head: 'feature', owner: 'owner', repo: 'repo' },
+      ]);
+      assert.deepStrictEqual(calls.pullFiles, [
+        { owner: 'owner', repo: 'repo', pull_number: 123, per_page: 100 },
+      ]);
     });
+
+    it.each([
+      ['matches', 1, 1],
+      ['is larger than', 2, 1],
+      ['is empty with', 0, 0],
+    ])(
+      'keeps compare files when their count %s the known pull request count',
+      async (_description, compareCount, pullChangedFiles) => {
+        const compareFiles = Array.from({ length: compareCount }, (_, index) => ({
+          filename: `src/file-${index}.ts`,
+          status: 'modified',
+        }));
+        const { calls, github } = fakeGithub({
+          compareFiles,
+          pullFiles: [{ filename: 'unexpected.ts', status: 'added' }],
+        });
+
+        const response = await new GitHubDiff(github).diff({
+          ...params,
+          pullChangedFiles,
+          pullNumber: 123,
+        });
+
+        assert.deepStrictEqual(
+          response,
+          compareFiles.map((file) => file.filename),
+        );
+        assert.deepStrictEqual(calls.pullFiles, []);
+      },
+    );
+
+    it('keeps 299 compare files when the pull request count is unavailable', async () => {
+      const compareFiles = Array.from({ length: 299 }, (_, index) => ({
+        filename: `src/file-${index}.ts`,
+        status: 'modified',
+      }));
+      const { calls, github } = fakeGithub({ compareFiles });
+
+      const response = await new GitHubDiff(github).diff({ ...params, pullNumber: 123 });
+
+      assert.strictEqual(response.length, 299);
+      assert.deepStrictEqual(calls.pullFiles, []);
+    });
+
+    it('keeps fallback compare files when paginated commits have no usable SHAs', async () => {
+      const compareFiles = Array.from({ length: 300 }, (_, index) => ({
+        filename: `src/file-${index}.ts`,
+        status: index === 299 ? 'removed' : 'modified',
+      }));
+      const { calls, github } = fakeGithub({
+        compareCommitPages: [[{}, {}]],
+        compareFiles,
+      });
+
+      const response = await new GitHubDiff(github).diff(params);
+
+      assert.strictEqual(response.length, 299);
+      assert.deepStrictEqual(calls.commitFiles, []);
+    });
+
+    it('keeps fallback compare files when commit-list pagination fails', async () => {
+      const compareFiles = Array.from({ length: 300 }, (_, index) => ({
+        filename: `src/file-${index}.ts`,
+        status: 'modified',
+      }));
+      const { github } = fakeGithub({
+        compareCommitError: new Error('commit list failed'),
+        compareFiles,
+      });
+
+      const response = await new GitHubDiff(github).diff(params);
+
+      assert.strictEqual(response.length, 300);
+    });
+
+    it('keeps fallback compare files when commit-file pagination fails', async () => {
+      const compareFiles = Array.from({ length: 300 }, (_, index) => ({
+        filename: `src/file-${index}.ts`,
+        status: 'modified',
+      }));
+      const { github } = fakeGithub({
+        commitError: new Error('commit files failed'),
+        compareCommitPages: [[{ sha: 'first' }]],
+        compareFiles,
+      });
+
+      const response = await new GitHubDiff(github).diff(params);
+
+      assert.strictEqual(response.length, 300);
+    });
+
+    it('propagates a pull-files fallback failure without retrying it', async () => {
+      const { calls, github } = fakeGithub({
+        compareFiles: [{ filename: 'partial.ts', status: 'modified' }],
+        pullError: new Error('pull files failed'),
+      });
+
+      await expect(
+        new GitHubDiff(github).diff({
+          ...params,
+          pullChangedFiles: 2,
+          pullNumber: 123,
+        }),
+      ).rejects.toThrow('pull files failed');
+      assert.strictEqual(calls.pullFiles.length, 1);
+    });
+
+    it('deduplicates pushed commit refs and ignores entries without filenames', async () => {
+      const { calls, github } = fakeGithub({
+        commitPagesByRef: {
+          first: [
+            [
+              { filename: 'src/known.ts' },
+              { status: 'modified' },
+              { filename: 'src/unrecognized.ts', status: 'unexpected' },
+            ],
+          ],
+        },
+      });
+
+      const response = await new GitHubDiff(github).diff({
+        ...params,
+        commitRefs: ['first', 'first'],
+      });
+
+      assert.deepStrictEqual(response, ['src/known.ts', 'src/unrecognized.ts']);
+      assert.strictEqual(calls.commitFiles.length, 1);
+    });
+
+    it.each([
+      [
+        'add then remove',
+        [[{ filename: 'file.ts', status: 'added' }], [{ filename: 'file.ts', status: 'removed' }]],
+        [],
+      ],
+      [
+        'remove then recreate',
+        [[{ filename: 'file.ts', status: 'removed' }], [{ filename: 'file.ts', status: 'added' }]],
+        ['file.ts'],
+      ],
+      [
+        'rename then remove',
+        [
+          [
+            {
+              filename: 'new.ts',
+              previous_filename: 'old.ts',
+              status: 'renamed',
+            },
+          ],
+          [{ filename: 'new.ts', status: 'removed' }],
+        ],
+        [],
+      ],
+    ] satisfies Array<[string, Array<Array<ChangedFile>>, Array<string>]>)(
+      'applies last-state semantics for %s',
+      async (_description, pages, expected) => {
+        const { github } = fakeGithub({
+          commitPagesByRef: { first: [pages[0] ?? []], second: [pages[1] ?? []] },
+        });
+
+        const response = await new GitHubDiff(github).diff({
+          ...params,
+          commitRefs: ['first', 'second'],
+        });
+
+        assert.deepStrictEqual(response, expected);
+      },
+    );
   });
   describe('sets', () => {
     it('returns a map of filtered files based on simple patterns', () => {
@@ -379,7 +532,7 @@ describe('diff', () => {
         md_files: ['foo/bar.md', 'baz.md'],
       });
     });
-    it("returns yields no map entries for files that don't match", () => {
+    it("returns no map entries for files that don't match", () => {
       const result = sets({ rust_files: '**/*.rs' }, ['foo/bar.md', 'baz.md', 'foo.js']);
       assert.deepStrictEqual(result, {});
     });
@@ -422,12 +575,44 @@ describe('diff', () => {
     });
     it('allows later patterns to re-include excluded files', () => {
       const result = sets({ ts_files: '**/*.ts\n!**/*.test.ts\nsrc/main.test.ts' }, [
-        'src/main.ts',
         'src/main.test.ts',
+        'src/main.ts',
         'README.md',
       ]);
       assert.deepStrictEqual(result, {
-        ts_files: ['src/main.ts', 'src/main.test.ts'],
+        ts_files: ['src/main.test.ts', 'src/main.ts'],
+      });
+    });
+
+    it('handles CRLF, whitespace, duplicate paths, spaces, Unicode, and independent filters', () => {
+      const result = sets(
+        {
+          docs_files: ' **/*.md\r\n!docs/private/**\r\ndocs/private/公開.md ',
+          dotfiles: '**/.*/**',
+        },
+        [
+          'docs/guide with space.md',
+          'docs/private/secret.md',
+          'docs/private/公開.md',
+          '.github/workflows/main.yml',
+          'docs/guide with space.md',
+        ],
+      );
+
+      assert.deepStrictEqual(result, {
+        docs_files: ['docs/guide with space.md', 'docs/private/公開.md'],
+        dotfiles: ['.github/workflows/main.yml'],
+      });
+    });
+
+    it('returns no named sets for empty filters or empty file lists', () => {
+      assert.deepStrictEqual(sets({}, ['README.md']), {});
+      assert.deepStrictEqual(sets({ md_files: '**/*.md' }, []), {});
+    });
+
+    it('ignores a standalone negation marker', () => {
+      assert.deepStrictEqual(sets({ md_files: '!\n**/*.md' }, ['README.md']), {
+        md_files: ['README.md'],
       });
     });
   });
