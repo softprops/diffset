@@ -29,6 +29,16 @@ in the same commit. Keep runtime behavior changes covered by tests under
 Run `npm run fmt` only when intentionally formatting touched TypeScript files.
 Avoid unrelated formatting churn.
 
+## GitHub API Boundary
+
+Keep Octokit-specific endpoint and pagination behavior in `src/github.ts`.
+Diff calculation in `src/diff.ts` should depend on the narrow `GitHubClient`
+interface so tests can use typed domain fakes without unsafe assertions.
+
+Parse event payload JSON from `unknown` and validate required GitHub context
+before constructing API parameters. Add focused tests for any new fallback or
+event-selection behavior.
+
 ## Release Workflow
 
 Use [RELEASE.md](RELEASE.md) as the release checklist. Keep release metadata in

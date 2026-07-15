@@ -16,4 +16,28 @@ describe('output', () => {
       special_files_json: '["src/special/main.ts"]',
     });
   });
+
+  it('round-trips arbitrary filenames through JSON outputs', () => {
+    const files = [
+      'docs/has space.md',
+      'docs/has\ttab.md',
+      'docs/has"quote.md',
+      'docs/has\\backslash.md',
+      'docs/公開.md',
+      '-leading-dash',
+      'docs/[glob]*?.md',
+      'docs/has\nnewline.md',
+    ];
+
+    const outputs = listOutputs('files', files);
+
+    assert.deepStrictEqual(JSON.parse(outputs.files_json ?? ''), files);
+  });
+
+  it('emits compatibility and JSON outputs for an empty list', () => {
+    assert.deepStrictEqual(listOutputs('files', []), {
+      files: '',
+      files_json: '[]',
+    });
+  });
 });

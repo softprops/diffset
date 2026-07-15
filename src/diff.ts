@@ -1,5 +1,6 @@
-import { Octokit } from '@octokit/rest';
 import { Minimatch } from 'minimatch';
+
+import type { ChangedFile, CompareRequest, GitHubClient } from './github.js';
 
 export type Params = {
   base: string;
@@ -13,25 +14,18 @@ export type Params = {
   ref: string;
 };
 
-export type ChangedFile = {
-  filename?: string;
-  previous_filename?: string;
-  status?: string;
-};
-
-type ChangedCommit = {
-  sha?: string;
-};
-
 const CompareFilesLimit = 300;
 
 /** produce a collection of named diff sets based on patterns defined in sets */
 export const sets = (
   filters: Record<string, string>,
   files: Array<string>,
-): Record<string, Array<string>> =>
-  Array.from(Object.entries(filters)).reduce((filtered, [key, patterns]) => {
-    let matches = patterns
+): Record<string, Array<string>> => {
+  const filtered: Record<string, Array<string>> = {};
+  const uniqueFiles = Array.from(new Set(files));
+
+  for (const [key, patterns] of Object.entries(filters)) {
+    const matches = patterns
       .split(/\r?\n/)
       .map((pattern) => pattern.trim())
       .filter((pattern) => pattern.length > 0)
@@ -42,8 +36,8 @@ export const sets = (
           return matches;
         }
 
-        let matcher = new Minimatch(expression);
-        files
+        const matcher = new Minimatch(expression);
+        uniqueFiles
           .filter((file) => matcher.match(file))
           .forEach((file) => {
             if (negate) {
@@ -54,12 +48,14 @@ export const sets = (
           });
         return matches;
       }, new Set<string>());
-    let uniqueMatches = Array.from(matches);
-    if (uniqueMatches.length > 0) {
-      filtered[key] = uniqueMatches;
+    const orderedMatches = uniqueFiles.filter((file) => matches.has(file));
+    if (orderedMatches.length > 0) {
+      filtered[key] = orderedMatches;
     }
-    return filtered;
-  }, {});
+  }
+
+  return filtered;
+};
 
 export interface Diff {
   diff(params: Params): Promise<Array<string>>;
@@ -76,8 +72,8 @@ const filenames = (files: Array<ChangedFile> | undefined, includeRemoved = false
     .filter(isDefined) || [];
 
 export class GitHubDiff implements Diff {
-  readonly github: Octokit;
-  constructor(github: Octokit) {
+  readonly github: GitHubClient;
+  constructor(github: GitHubClient) {
     this.github = github;
   }
   async diff(params: Params): Promise<Array<string>> {
@@ -86,18 +82,19 @@ export class GitHubDiff implements Diff {
     }
 
     if (params.pullNumber != undefined) {
+      let files: Array<ChangedFile>;
       try {
-        const files = await this.compareFiles(params);
-        if (params.pullChangedFiles != undefined && files.length < params.pullChangedFiles) {
-          return filenames(await this.pullFiles(params, params.pullNumber), params.includeRemoved);
-        }
-        if (params.pullChangedFiles == undefined && this.mayHaveTruncatedCompare(params, files)) {
-          return filenames(await this.pullFiles(params, params.pullNumber), params.includeRemoved);
-        }
-        return filenames(files, params.includeRemoved);
+        files = await this.compareFiles(params);
       } catch {
         return filenames(await this.pullFiles(params, params.pullNumber), params.includeRemoved);
       }
+      if (params.pullChangedFiles != undefined && files.length < params.pullChangedFiles) {
+        return filenames(await this.pullFiles(params, params.pullNumber), params.includeRemoved);
+      }
+      if (params.pullChangedFiles == undefined && this.mayHaveTruncatedCompare(params, files)) {
+        return filenames(await this.pullFiles(params, params.pullNumber), params.includeRemoved);
+      }
+      return filenames(files, params.includeRemoved);
     }
 
     const files = await this.compareFiles(params);
@@ -120,17 +117,13 @@ export class GitHubDiff implements Diff {
     commitRefs: Array<string>,
   ): Promise<Array<ChangedFile>> {
     const files = new Map<string, ChangedFile>();
-    for (const ref of commitRefs) {
-      const commitFiles = (await this.github.paginate(
-        this.github.repos.getCommit,
-        {
-          owner: params.owner,
-          repo: params.repo,
-          ref,
-          per_page: 100,
-        },
-        (response) => (response.data as { files?: Array<ChangedFile> }).files || [],
-      )) as Array<ChangedFile>;
+    for (const ref of new Set(commitRefs)) {
+      const commitFiles = await this.github.commitFiles({
+        owner: params.owner,
+        repo: params.repo,
+        ref,
+        per_page: 100,
+      });
       commitFiles.forEach((file) => {
         if (file.previous_filename != undefined) {
           files.delete(file.previous_filename);
@@ -155,65 +148,44 @@ export class GitHubDiff implements Diff {
   }
 
   private async compareCommitRefs(params: Params): Promise<Array<string>> {
-    const compareParams = this.compareParams(params);
-    const commits = (await this.github.paginate(
-      this.github.repos.compareCommits,
-      {
-        ...compareParams,
-        ref: undefined,
-        per_page: 100,
-      },
-      (response) => (response.data as { commits?: Array<ChangedCommit> }).commits || [],
-    )) as Array<ChangedCommit>;
+    const commits = await this.github.compareCommits({
+      ...this.compareRequest(params),
+      per_page: 100,
+    });
     return commits.map((commit) => commit.sha).filter(isDefined);
   }
 
   private async pullFiles(params: Params, pullNumber: number): Promise<Array<ChangedFile>> {
-    const files = await this.github.paginate(this.github.pulls.listFiles, {
+    return this.github.pullFiles({
       owner: params.owner,
       repo: params.repo,
       pull_number: pullNumber,
       per_page: 100,
     });
-    return files as Array<ChangedFile>;
   }
 
   private async compareFiles(params: Params): Promise<Array<ChangedFile>> {
-    const compareParams = this.compareParams(params);
+    const compareParams = this.compareRequest(params);
 
     // if this is a merge to the base branch
     // base and head will both be the same
     if (compareParams.base === compareParams.head) {
-      const files = await this.github.paginate(
-        this.github.repos.getCommit,
-        {
-          owner: compareParams.owner,
-          repo: compareParams.repo,
-          ref: compareParams.ref,
-          per_page: 100,
-        },
-        (response) => (response.data as { files?: Array<ChangedFile> }).files || [],
-      );
-      return files as Array<ChangedFile>;
-    } else {
-      const response = await this.github.repos.compareCommits({
-        ...compareParams,
-        ref: undefined,
+      return this.github.commitFiles({
+        owner: params.owner,
+        repo: params.repo,
+        ref: params.ref,
+        per_page: 100,
       });
-      return response.data.files || [];
     }
+    return this.github.compareFiles(compareParams);
   }
 
-  private compareParams(
-    params: Params,
-  ): Omit<Params, 'commitRefs' | 'includeRemoved' | 'pullChangedFiles' | 'pullNumber'> {
-    const {
-      commitRefs: _commitRefs,
-      includeRemoved: _includeRemoved,
-      pullChangedFiles: _pullChangedFiles,
-      pullNumber: _pullNumber,
-      ...compareParams
-    } = params;
-    return compareParams;
+  private compareRequest(params: Params): CompareRequest {
+    return {
+      base: params.base,
+      head: params.head,
+      owner: params.owner,
+      repo: params.repo,
+    };
   }
 }
