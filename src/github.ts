@@ -1,5 +1,10 @@
 import type { Octokit } from '@octokit/rest';
 
+type JsonObject = Record<string, unknown>;
+
+const isJsonObject = (value: unknown): value is JsonObject =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
 export type ChangedFile = {
   filename?: string;
   previous_filename?: string;
@@ -9,6 +14,21 @@ export type ChangedFile = {
 export type ChangedCommit = {
   sha?: string;
 };
+
+const isChangedFile = (value: unknown): value is ChangedFile =>
+  isJsonObject(value) &&
+  (value.filename == undefined || typeof value.filename === 'string') &&
+  (value.previous_filename == undefined || typeof value.previous_filename === 'string') &&
+  (value.status == undefined || typeof value.status === 'string');
+
+const isChangedCommit = (value: unknown): value is ChangedCommit =>
+  isJsonObject(value) && (value.sha == undefined || typeof value.sha === 'string');
+
+const changedFilesFromPage = (data: unknown): Array<ChangedFile> =>
+  isJsonObject(data) && Array.isArray(data.files) ? data.files.filter(isChangedFile) : [];
+
+const changedCommitsFromPage = (data: unknown): Array<ChangedCommit> =>
+  isJsonObject(data) && Array.isArray(data.commits) ? data.commits.filter(isChangedCommit) : [];
 
 export type CompareRequest = {
   base: string;
@@ -45,22 +65,17 @@ export class OctokitGitHubClient implements GitHubClient {
   constructor(private readonly octokit: Octokit) {}
 
   async commitFiles(params: CommitRequest): Promise<Array<ChangedFile>> {
-    return this.collectPages(params.per_page, async (page) => {
-      const response = await this.octokit.repos.getCommit({ ...params, page });
-      return response.data.files ?? [];
-    });
+    return this.octokit.paginate(this.octokit.repos.getCommit, params, (response) =>
+      changedFilesFromPage(response.data),
+    );
   }
 
   async compareCommits(params: CompareRequest): Promise<Array<ChangedCommit>> {
-    const perPage = params.per_page ?? 100;
-    return this.collectPages(perPage, async (page) => {
-      const response = await this.octokit.repos.compareCommits({
-        ...params,
-        page,
-        per_page: perPage,
-      });
-      return response.data.commits ?? [];
-    });
+    return this.octokit.paginate(
+      this.octokit.repos.compareCommits,
+      { ...params, per_page: params.per_page ?? 100 },
+      (response) => changedCommitsFromPage(response.data),
+    );
   }
 
   async compareFiles(params: CompareRequest): Promise<Array<ChangedFile>> {
@@ -69,23 +84,6 @@ export class OctokitGitHubClient implements GitHubClient {
   }
 
   async pullFiles(params: PullFilesRequest): Promise<Array<ChangedFile>> {
-    return this.collectPages(params.per_page, async (page) => {
-      const response = await this.octokit.pulls.listFiles({ ...params, page });
-      return response.data;
-    });
-  }
-
-  private async collectPages<T>(
-    perPage: number,
-    loadPage: (page: number) => Promise<Array<T>>,
-  ): Promise<Array<T>> {
-    const results: Array<T> = [];
-    for (let page = 1; ; page += 1) {
-      const pageResults = await loadPage(page);
-      results.push(...pageResults);
-      if (pageResults.length < perPage) {
-        return results;
-      }
-    }
+    return this.octokit.paginate(this.octokit.pulls.listFiles, params, (response) => response.data);
   }
 }

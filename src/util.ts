@@ -235,6 +235,10 @@ const pullHeadRef = (pullRequest: GitHubEventPayload['pull_request']): string | 
 
 const zeroSha = /^0+$/;
 
+// GitHub push payloads contain at most 2,048 commits, so a list at the cap may
+// be truncated even when the optional `size` field is absent.
+const PushCommitsLimit = 2_048;
+
 const pushRangeFromEvent = (
   env: Env,
   event: GitHubEventPayload | undefined,
@@ -250,12 +254,16 @@ const pushRangeFromEvent = (
     return {};
   }
 
-  const commitRefs = event?.commits
-    ?.map((commit) => commit.id)
+  const rawCommits = event?.commits ?? [];
+  const commitRefs = rawCommits
+    .map((commit) => commit.id)
     .filter((id): id is string => id != undefined && id.length > 0);
   const commitListIsIncomplete =
-    event?.size != undefined && commitRefs != undefined && commitRefs.length < event.size;
-  if (commitRefs != undefined && commitRefs.length > 0 && !commitListIsIncomplete) {
+    rawCommits.length >= PushCommitsLimit ||
+    commitRefs.length < rawCommits.length ||
+    (event?.size != undefined &&
+      (event.size > rawCommits.length || event.size > commitRefs.length));
+  if (commitRefs.length > 0 && !commitListIsIncomplete) {
     return { pushCommitRefs: commitRefs };
   }
 
@@ -263,7 +271,7 @@ const pushRangeFromEvent = (
     return { pushBase: event.before, pushHead: event.after };
   }
 
-  if (commitRefs != undefined && commitRefs.length > 0) {
+  if (commitRefs.length > 0) {
     return { pushCommitRefs: commitRefs };
   }
 

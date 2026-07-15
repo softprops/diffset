@@ -26,6 +26,41 @@ const withEventContents = <T>(contents: string, callback: (eventPath: string) =>
 const withEvent = <T>(payload: unknown, callback: (eventPath: string) => T): T =>
   withEventContents(JSON.stringify(payload), callback);
 
+const BeforeSha = '1111111111111111111111111111111111111111';
+const AfterSha = 'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
+const ZeroSha = '0000000000000000000000000000000000000000';
+
+const pushCommits = (count: number): Array<{ id: string }> =>
+  Array.from({ length: count }, (_, index) => ({
+    id: (index + 1).toString(16).padStart(40, '0'),
+  }));
+
+const CappedPushCommits = pushCommits(2_048);
+const CappedPushCommitRefs = CappedPushCommits.map((commit) => commit.id);
+
+const pushParams = (
+  payload: Record<string, unknown>,
+  envOverrides: Record<string, string | undefined> = {},
+) =>
+  withEvent({ repository: { default_branch: 'main' }, ...payload }, (eventPath) =>
+    intoParams(
+      parseConfig({
+        ...githubEnv,
+        GITHUB_EVENT_NAME: 'push',
+        GITHUB_EVENT_PATH: eventPath,
+        GITHUB_REF: 'refs/heads/main',
+        GITHUB_SHA: AfterSha,
+        ...envOverrides,
+      }),
+    ),
+  );
+
+const pushSelection = (params: ReturnType<typeof pushParams>) => ({
+  base: params.base,
+  ...(params.commitRefs == undefined ? {} : { commitRefs: params.commitRefs }),
+  head: params.head,
+});
+
 describe('util', () => {
   describe('infoParams', () => {
     it('transforms a config into diff params for heads', () => {
@@ -587,121 +622,74 @@ describe('util', () => {
       });
     });
 
-    it('falls back to before and after when a push commit list is incomplete', () => {
-      withEvent(
-        {
-          before: '1111111111111111111111111111111111111111',
-          after: '4444444444444444444444444444444444444444',
-          commits: [
-            { id: '2222222222222222222222222222222222222222' },
-            { id: '3333333333333333333333333333333333333333' },
-          ],
-          repository: { default_branch: 'main' },
-          size: 3,
+    it.each([
+      {
+        expected: { base: 'main', commitRefs: [BeforeSha, AfterSha], head: 'main' },
+        name: 'uses valid commit refs below the payload cap when size is absent',
+        payload: {
+          after: AfterSha,
+          before: BeforeSha,
+          commits: [{ id: BeforeSha }, { id: AfterSha }],
         },
-        (eventPath) => {
-          const config = parseConfig({
-            ...githubEnv,
-            GITHUB_EVENT_NAME: 'push',
-            GITHUB_EVENT_PATH: eventPath,
-            GITHUB_REF: 'refs/heads/main',
-            GITHUB_SHA: '4444444444444444444444444444444444444444',
-          });
-
-          assert.deepStrictEqual(intoParams(config), {
-            base: '1111111111111111111111111111111111111111',
-            head: '4444444444444444444444444444444444444444',
-            owner: 'softprops',
-            repo: 'diffset',
-            ref: '4444444444444444444444444444444444444444',
-          });
+      },
+      {
+        expected: { base: BeforeSha, head: AfterSha },
+        name: 'uses the push range at the payload cap when size is absent',
+        payload: { after: AfterSha, before: BeforeSha, commits: CappedPushCommits },
+      },
+      {
+        expected: { base: 'main', commitRefs: CappedPushCommitRefs, head: 'main' },
+        name: 'retains capped commit refs for a new-ref push',
+        payload: { after: AfterSha, before: ZeroSha, commits: CappedPushCommits },
+      },
+      {
+        expected: { base: BeforeSha, head: AfterSha },
+        name: 'uses the range when a raw commit entry has no usable ID',
+        payload: {
+          after: AfterSha,
+          before: BeforeSha,
+          commits: [{ id: BeforeSha }, {}, { id: AfterSha }],
         },
-      );
-    });
-
-    it('uses before and after when push commit IDs are missing or empty', () => {
-      withEvent(
-        {
-          before: '1111111111111111111111111111111111111111',
-          after: '2222222222222222222222222222222222222222',
-          commits: [{}, { id: '' }],
-          repository: { default_branch: 'main' },
+      },
+      {
+        expected: { base: BeforeSha, head: AfterSha },
+        name: 'uses the range when size exceeds the raw commit count',
+        payload: { after: AfterSha, before: BeforeSha, commits: [{ id: BeforeSha }], size: 2 },
+      },
+      {
+        expected: { base: 'main', commitRefs: [BeforeSha, AfterSha], head: 'main' },
+        name: 'uses commit refs when size matches a valid list below the cap',
+        payload: {
+          after: AfterSha,
+          before: BeforeSha,
+          commits: [{ id: BeforeSha }, { id: AfterSha }],
           size: 2,
         },
-        (eventPath) => {
-          const config = parseConfig({
-            ...githubEnv,
-            GITHUB_EVENT_NAME: 'push',
-            GITHUB_EVENT_PATH: eventPath,
-            GITHUB_REF: 'refs/heads/main',
-          });
-
-          assert.deepStrictEqual(intoParams(config), {
-            base: '1111111111111111111111111111111111111111',
-            head: '2222222222222222222222222222222222222222',
-            owner: 'softprops',
-            repo: 'diffset',
-            ref: githubEnv.GITHUB_SHA,
-          });
-        },
-      );
-    });
-
-    it('keeps same-ref behavior for a new default-branch push', () => {
-      withEvent(
-        {
-          before: '0000000000000000000000000000000000000000',
-          after: githubEnv.GITHUB_SHA,
-          commits: [],
-          repository: { default_branch: 'main' },
-          size: 0,
-        },
-        (eventPath) => {
-          const config = parseConfig({
-            ...githubEnv,
-            GITHUB_EVENT_NAME: 'push',
-            GITHUB_EVENT_PATH: eventPath,
-            GITHUB_REF: 'refs/heads/main',
-          });
-
-          assert.deepStrictEqual(intoParams(config), {
-            base: 'main',
-            head: 'main',
-            owner: 'softprops',
-            repo: 'diffset',
-            ref: githubEnv.GITHUB_SHA,
-          });
-        },
-      );
-    });
-
-    it('keeps available commit IDs for an incomplete new-branch payload', () => {
-      withEvent(
-        {
-          before: '0000000000000000000000000000000000000000',
-          after: githubEnv.GITHUB_SHA,
-          commits: [{ id: '1111111111111111111111111111111111111111' }],
-          repository: { default_branch: 'main' },
-          size: 2,
-        },
-        (eventPath) => {
-          const config = parseConfig({
-            ...githubEnv,
-            GITHUB_EVENT_NAME: 'push',
-            GITHUB_EVENT_PATH: eventPath,
-            GITHUB_REF: 'refs/heads/main',
-          });
-
-          assert.deepStrictEqual(intoParams(config), {
-            base: 'main',
-            commitRefs: ['1111111111111111111111111111111111111111'],
-            head: 'main',
-            owner: 'softprops',
-            repo: 'diffset',
-            ref: githubEnv.GITHUB_SHA,
-          });
-        },
-      );
+      },
+      {
+        expected: { base: BeforeSha, head: AfterSha },
+        name: 'uses the range for an empty commit list',
+        payload: { after: AfterSha, before: BeforeSha, commits: [] },
+      },
+      {
+        expected: { base: 'main', head: 'main' },
+        name: 'keeps same-ref behavior for an empty new-ref push',
+        payload: { after: AfterSha, before: ZeroSha, commits: [] },
+      },
+      {
+        env: { INPUT_BASE: 'develop' },
+        expected: { base: 'develop', head: 'main' },
+        name: 'lets a custom base bypass push range selection',
+        payload: { after: AfterSha, before: BeforeSha, commits: CappedPushCommits },
+      },
+      {
+        env: { GITHUB_REF: 'refs/heads/feature' },
+        expected: { base: 'main', head: 'feature' },
+        name: 'lets a non-default branch bypass push range selection',
+        payload: { after: AfterSha, before: BeforeSha, commits: CappedPushCommits },
+      },
+    ])('$name', ({ env, expected, payload }) => {
+      assert.deepStrictEqual(pushSelection(pushParams(payload, env)), expected);
     });
 
     it('supports pull_request_target and a top-level pull request number', () => {

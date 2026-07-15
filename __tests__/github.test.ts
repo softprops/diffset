@@ -4,72 +4,107 @@ import { OctokitGitHubClient } from '../src/github';
 
 import { assert, describe, it, vi } from 'vitest';
 
+const urlFromRequest = (input: string | URL | Request): URL =>
+  new URL(typeof input === 'string' || input instanceof URL ? input : input.url);
+
+const jsonResponse = (body: unknown, link?: string): Response =>
+  new Response(JSON.stringify(body), {
+    headers: {
+      'content-type': 'application/json',
+      ...(link == undefined ? {} : { link }),
+    },
+    status: 200,
+  });
+
+const nextPageLink = (url: URL): string => {
+  const next = new URL(url);
+  next.searchParams.set('page', '2');
+  return `<${next.toString()}>; rel="next"`;
+};
+
+const clientUsing = (fetch: typeof globalThis.fetch): OctokitGitHubClient =>
+  new OctokitGitHubClient(new Octokit({ request: { fetch } }));
+
 describe('OctokitGitHubClient', () => {
-  it('maps and paginates the GitHub endpoints used by diff calculation', async () => {
-    const requests: Array<{ page: string | null; path: string; perPage: string | null }> = [];
+  it('maps a full commit-file page and stops when there is no next link', async () => {
+    const requests: Array<URL> = [];
     const fetch = vi.fn<typeof globalThis.fetch>(async (input) => {
-      const url = new URL(typeof input === 'string' || input instanceof URL ? input : input.url);
-      const page = url.searchParams.get('page');
-      const perPage = url.searchParams.get('per_page');
-      requests.push({ page, path: url.pathname, perPage });
-
-      let body: unknown;
-      if (url.pathname.endsWith('/commits/abc123')) {
-        body = {
-          files:
-            page === '1'
-              ? [
-                  { filename: 'first.ts', status: 'added' },
-                  { filename: 'second.ts', status: 'modified' },
-                ]
-              : [{ filename: 'third.ts', status: 'removed' }],
-        };
-      } else if (url.pathname.includes('/compare/')) {
-        body =
-          perPage == undefined
-            ? { files: [{ filename: 'compare.ts', status: 'modified' }] }
-            : {
-                commits: page === '1' ? [{ sha: 'first' }, { sha: 'second' }] : [{ sha: 'third' }],
-              };
-      } else if (url.pathname.endsWith('/pulls/7/files')) {
-        body =
-          page === '1'
-            ? [
-                { filename: 'pull-first.ts', status: 'added' },
-                { filename: 'pull-second.ts', status: 'modified' },
-              ]
-            : [{ filename: 'pull-third.ts', status: 'removed' }];
-      } else {
-        return new Response('not found', { status: 404 });
+      const url = urlFromRequest(input);
+      requests.push(url);
+      if (requests.length > 1) {
+        return new Response('unexpected extra page', { status: 500 });
       }
-
-      return new Response(JSON.stringify(body), {
-        headers: { 'content-type': 'application/json' },
-        status: 200,
+      return jsonResponse({
+        files: [
+          { filename: 'first.ts', status: 'added' },
+          { filename: 'second.ts', status: 'modified' },
+        ],
       });
     });
-    const github = new OctokitGitHubClient(new Octokit({ request: { fetch } }));
 
-    const commitFiles = await github.commitFiles({
+    const files = await clientUsing(fetch).commitFiles({
       owner: 'softprops',
       per_page: 2,
       ref: 'abc123',
       repo: 'diffset',
     });
-    const compareCommits = await github.compareCommits({
+
+    assert.deepStrictEqual(
+      files.map((file) => file.filename),
+      ['first.ts', 'second.ts'],
+    );
+    assert.strictEqual(requests.length, 1);
+    assert.strictEqual(requests[0]?.searchParams.get('per_page'), '2');
+  });
+
+  it('follows compare-commit next links and stops on a full page without one', async () => {
+    const requests: Array<URL> = [];
+    const fetch = vi.fn<typeof globalThis.fetch>(async (input) => {
+      const url = urlFromRequest(input);
+      requests.push(url);
+      if (requests.length === 1) {
+        return jsonResponse({ commits: [{ sha: 'first' }, { sha: 'second' }] }, nextPageLink(url));
+      }
+      if (requests.length === 2) {
+        return jsonResponse({ commits: [{ sha: 'third' }, { sha: 'fourth' }] });
+      }
+      return new Response('unexpected extra page', { status: 500 });
+    });
+
+    const commits = await clientUsing(fetch).compareCommits({
       base: 'main',
       head: 'feature',
       owner: 'softprops',
       per_page: 2,
       repo: 'diffset',
     });
-    const compareFiles = await github.compareFiles({
-      base: 'main',
-      head: 'feature',
-      owner: 'softprops',
-      repo: 'diffset',
+
+    assert.deepStrictEqual(
+      commits.map((commit) => commit.sha),
+      ['first', 'second', 'third', 'fourth'],
+    );
+    assert.strictEqual(requests.length, 2);
+    assert.strictEqual(requests[1]?.searchParams.get('page'), '2');
+  });
+
+  it('accumulates pull-file array responses by following next links', async () => {
+    const requests: Array<URL> = [];
+    const fetch = vi.fn<typeof globalThis.fetch>(async (input) => {
+      const url = urlFromRequest(input);
+      requests.push(url);
+      if (requests.length === 1) {
+        return jsonResponse(
+          [
+            { filename: 'pull-first.ts', status: 'added' },
+            { filename: 'pull-second.ts', status: 'modified' },
+          ],
+          nextPageLink(url),
+        );
+      }
+      return jsonResponse([{ filename: 'pull-third.ts', status: 'removed' }]);
     });
-    const pullFiles = await github.pullFiles({
+
+    const files = await clientUsing(fetch).pullFiles({
       owner: 'softprops',
       per_page: 2,
       pull_number: 7,
@@ -77,56 +112,45 @@ describe('OctokitGitHubClient', () => {
     });
 
     assert.deepStrictEqual(
-      commitFiles.map((file) => file.filename),
-      ['first.ts', 'second.ts', 'third.ts'],
-    );
-    assert.deepStrictEqual(
-      compareCommits.map((commit) => commit.sha),
-      ['first', 'second', 'third'],
-    );
-    assert.deepStrictEqual(compareFiles, [{ filename: 'compare.ts', status: 'modified' }]);
-    assert.deepStrictEqual(
-      pullFiles.map((file) => file.filename),
+      files.map((file) => file.filename),
       ['pull-first.ts', 'pull-second.ts', 'pull-third.ts'],
     );
-    assert.deepStrictEqual(requests, [
-      { page: '1', path: '/repos/softprops/diffset/commits/abc123', perPage: '2' },
-      { page: '2', path: '/repos/softprops/diffset/commits/abc123', perPage: '2' },
-      {
-        page: '1',
-        path: '/repos/softprops/diffset/compare/main...feature',
-        perPage: '2',
-      },
-      {
-        page: '2',
-        path: '/repos/softprops/diffset/compare/main...feature',
-        perPage: '2',
-      },
-      {
-        page: null,
-        path: '/repos/softprops/diffset/compare/main...feature',
-        perPage: null,
-      },
-      { page: '1', path: '/repos/softprops/diffset/pulls/7/files', perPage: '2' },
-      { page: '2', path: '/repos/softprops/diffset/pulls/7/files', perPage: '2' },
-    ]);
+    assert.strictEqual(requests.length, 2);
+    assert.strictEqual(requests[1]?.searchParams.get('page'), '2');
   });
 
-  it('uses default pagination and tolerates omitted optional file arrays', async () => {
+  it('keeps compare files as one unpaginated request', async () => {
     const requests: Array<URL> = [];
     const fetch = vi.fn<typeof globalThis.fetch>(async (input) => {
-      const url = new URL(typeof input === 'string' || input instanceof URL ? input : input.url);
+      const url = urlFromRequest(input);
       requests.push(url);
-      const body =
-        url.pathname.includes('/compare/') && url.searchParams.has('per_page')
-          ? { commits: [] }
-          : {};
-      return new Response(JSON.stringify(body), {
-        headers: { 'content-type': 'application/json' },
-        status: 200,
-      });
+      return jsonResponse(
+        { files: [{ filename: 'compare.ts', status: 'modified' }] },
+        nextPageLink(url),
+      );
     });
-    const github = new OctokitGitHubClient(new Octokit({ request: { fetch } }));
+
+    assert.deepStrictEqual(
+      await clientUsing(fetch).compareFiles({
+        base: 'main',
+        head: 'feature',
+        owner: 'softprops',
+        repo: 'diffset',
+      }),
+      [{ filename: 'compare.ts', status: 'modified' }],
+    );
+    assert.strictEqual(requests.length, 1);
+    assert.strictEqual(requests[0]?.searchParams.has('per_page'), false);
+  });
+
+  it('uses default pagination and tolerates omitted commit and file arrays', async () => {
+    const requests: Array<URL> = [];
+    const fetch = vi.fn<typeof globalThis.fetch>(async (input) => {
+      const url = urlFromRequest(input);
+      requests.push(url);
+      return jsonResponse({});
+    });
+    const github = clientUsing(fetch);
 
     assert.deepStrictEqual(
       await github.commitFiles({
