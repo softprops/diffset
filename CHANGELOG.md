@@ -1,3 +1,7 @@
+## 3.1.3
+
+maintenance release with updated dependencies
+
 ## 3.1.2
 
 - Handle non-Error action failures safely
