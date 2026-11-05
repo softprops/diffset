@@ -545,6 +545,22 @@ describe('diff', () => {
         jvm_files: ['src/main/java/com/foo/Bar.java', 'src/main/scala/com/foo/Baz.scala'],
       });
     });
+    it('combines brace expansion, extglobs, and ordered exclusions', () => {
+      const result = sets(
+        { source_files: 'src/**/*.{ts,js}\n!**/*.test.{ts,js}\nsrc/**/@(keep|restore).test.ts' },
+        [
+          'src/main.ts',
+          'src/nested/util.js',
+          'src/main.test.ts',
+          'src/nested/keep.test.ts',
+          'docs/main.ts',
+          'src/main.css',
+        ],
+      );
+      assert.deepStrictEqual(result, {
+        source_files: ['src/main.ts', 'src/nested/util.js', 'src/nested/keep.test.ts'],
+      });
+    });
     it('ignores blank patterns and deduplicates matches', () => {
       const result = sets({ ts_files: '**/*.ts\n\n src/**/*.ts ' }, [
         'src/main.ts',
